@@ -1,0 +1,19 @@
+name: 问题反馈 / Bug report
+description: 告诉我们哪个功能没有按预期工作
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: input
+    id: browser
+    attributes:
+      label: 浏览器和插件版本
+      placeholder: Chrome 版本 / 插件 0.1.0
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 重现步骤、预期结果和实际结果
+      description: 请不要上传包含私人数据的截图或导出文件。
+    validations:
+      required: true

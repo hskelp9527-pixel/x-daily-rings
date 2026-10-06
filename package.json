@@ -1,0 +1,13 @@
+{
+  "name": "x-daily-rings",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Daily post / reply / quote rings and a follow-back highlighter for X, as a floating panel.",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/model.test.mjs",
+    "test:browser": "node tests/browser.test.mjs"
+  },
+  "devDependencies": { "playwright-core": "1.61.1" }
+}
