@@ -70,7 +70,7 @@ try {
   assert.equal(firstId, '100', 'page still receives the original response');
   await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelector('.lab').textContent === '发帖 1/1');
   await panel.locator('.toast.show').waitFor();
-  assert.match(await panel.locator('.toast').textContent(), /发帖 100%/);
+  assert.match(await panel.locator('.toast').textContent(), /发帖 100%：今天的任务已达标/);
   assert.ok(await panel.locator('.confetti').count() > 0, 'confetti on full ring');
 
   await tab.evaluate(() => new Promise(done => {

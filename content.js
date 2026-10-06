@@ -1,6 +1,6 @@
 // Floating rings panel + "who doesn't follow back" highlighter. Isolated world, document_idle.
 (() => {
-  const { KINDS, LABELS, dayKey, classifyCreate, unfollowUid, crossedTier, message, emptyDay } = globalThis.XDR;
+  const { KINDS, LABELS, FIRST_FULL, dayKey, classifyCreate, unfollowUid, crossedTier, message, emptyDay } = globalThis.XDR;
   const COLORS = { post: '#1d9bf0', reply: '#00ba7c', quote: '#f91880' };
   const ICONS = { post: '📝', reply: '↩️', quote: '🔁' };
   const DEFAULT_GOALS = { post: 3, reply: 20, quote: 5 };
@@ -119,10 +119,13 @@
       const r = classifyCreate(body, text, new Set(ownIds));
       if (!r) return;
       const prev = day[r.kind]++;
-      await store.set({ days: { ...days, [key]: day }, ownIds: r.id ? [String(r.id), ...ownIds].slice(0, 500) : ownIds });
       const tier = crossedTier(prev, day[r.kind], S.goals[r.kind]);
+      // The day's first closed ring always gets the signature line.
+      const cheer = tier === 100 && !day.full ? FIRST_FULL : tier && message(tier);
+      if (tier === 100) day.full = true;
+      await store.set({ days: { ...days, [key]: day }, ownIds: r.id ? [String(r.id), ...ownIds].slice(0, 500) : ownIds });
       if (tier) {
-        toast(`${ICONS[r.kind]} ${LABELS[r.kind]} ${tier}%：${message(tier)}`);
+        toast(`${ICONS[r.kind]} ${LABELS[r.kind]} ${tier}%：${cheer}`);
         if (tier === 100) confetti();
       }
     } catch { /* extension reloaded or unexpected payload: never break X */ }

@@ -43,7 +43,9 @@ test('milestones fire once per crossed tier, highest wins', () => {
   assert.equal(crossedTier(0, 1, 500), 0);
   assert.equal(crossedTier(124, 125, 500), 25);
   assert.equal(crossedTier(0, 1, 0), 0);
-  assert.match(message(100, () => 0), /达标/);
+  for (const t of [25, 50, 75, 100]) assert.ok(ctx.XDR.MESSAGES[t].length >= 8);
+  assert.equal(message(100, () => 0), ctx.XDR.FIRST_FULL);
+  assert.match(message(25, () => 0.999), /\S/);
 });
 
 test('day key uses local calendar date', () => {
