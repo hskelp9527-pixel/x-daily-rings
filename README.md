@@ -36,9 +36,9 @@
 
 ## 已知限制
 
-- 只统计在这个浏览器里发出的内容，手机上发的不算。
-- 转帖（不加评论）不计入；删掉的帖子不会扣回。
-- 连续发帖串（thread）里，回复自己帖子的那几条记作发帖，不算回复。
+- 只统计在这个浏览器里发出的内容，手机上发的不算；定时发送的帖子由 X 服务器到点发布，也不算。
+- 转帖（不加评论）不计入；编辑帖子不重复计数；删掉的帖子不会扣回。
+- 回复自己的帖子（比如连续发帖串）记作发帖，不算回复。
 - 依赖 X 网页的内部结构。X 改版后如果计数或高亮失效，请[提个 Issue](https://github.com/hskelp9527-pixel/x-daily-rings/issues/new/choose)。
 
 ## 安装，三步即可
@@ -79,7 +79,7 @@ X Daily Rings is a Chrome / Edge extension (Chinese UI) that pins a draggable ca
 
 It only reads, never acts: no X API calls and no extra requests. Counting reads the response X's own web app receives when *you* publish; the follow-back check reads only rows you have scrolled into view. No auto-scroll, no bulk unfollow. Data lives in `chrome.storage.local` and can be exported as JSON.
 
-Limits: posts from other devices are not counted; reposts are not counted; deletions are not subtracted; replies to your own posts (threads) count as posts. X markup changes may break counting or highlighting until an update ships.
+Limits: posts from other devices and scheduled posts are not counted; reposts and edits are not counted; deletions are not subtracted; replies to your own posts (threads) count as posts. X markup changes may break counting or highlighting until an update ships.
 
 Install: download **x-daily-rings.zip** from [Releases](https://github.com/hskelp9527-pixel/x-daily-rings/releases/latest), unzip, enable Developer mode in `chrome://extensions` or `edge://extensions`, choose **Load unpacked**, select the folder with `manifest.json`, and refresh X.
 

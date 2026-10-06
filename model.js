@@ -50,8 +50,13 @@ globalThis.XDR = (() => {
     if (!result) return null;
     const id = result.rest_id ?? result.tweet?.rest_id ?? null;
     const vars = parse(parse(body)?.variables) ?? {};
+    if (vars.edit_options?.previous_tweet_id) return null; // editing reuses CreateTweet
     const replyTo = vars.reply?.in_reply_to_tweet_id;
-    if (replyTo) return { kind: ownIds.has(String(replyTo)) ? 'post' : 'reply', id };
+    if (replyTo) {
+      const legacy = result.legacy ?? result.tweet?.legacy;
+      const self = legacy?.in_reply_to_user_id_str != null && legacy.in_reply_to_user_id_str === legacy.user_id_str;
+      return { kind: self || ownIds.has(String(replyTo)) ? 'post' : 'reply', id };
+    }
     if (/\/status\/\d+/.test(vars.attachment_url ?? '')) return { kind: 'quote', id };
     return { kind: 'post', id };
   }

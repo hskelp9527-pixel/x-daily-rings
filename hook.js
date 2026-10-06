@@ -3,14 +3,15 @@
 (() => {
   const watched = url => /\/(CreateTweet|CreateNoteTweet)$|\/friendships\/destroy\.json$/.test(String(url).split('?')[0]);
   const emit = (url, body, text) =>
-    document.dispatchEvent(new CustomEvent('xdr:net', { detail: JSON.stringify({ url: String(url), body: typeof body === 'string' ? body : '', text }) }));
+    document.dispatchEvent(new CustomEvent('xdr:net', { detail: JSON.stringify({ url: String(url), body: typeof body === 'string' ? body : body instanceof URLSearchParams ? String(body) : '', text }) }));
 
   const nativeFetch = window.fetch;
   window.fetch = function (input, init) {
     const url = input instanceof Request ? input.url : String(input);
+    // Read a Request's body before fetch consumes it.
+    const body = !watched(url) ? null : init?.body != null ? Promise.resolve(init.body) : input instanceof Request ? input.clone().text() : Promise.resolve('');
     const promise = nativeFetch.apply(this, arguments);
-    if (watched(url)) {
-      const body = init?.body != null ? Promise.resolve(init.body) : input instanceof Request ? input.clone().text() : Promise.resolve('');
+    if (body) {
       promise.then(res => res.ok && Promise.all([body, res.clone().text()]).then(([b, t]) => emit(url, b, t))).catch(() => {});
     }
     return promise;

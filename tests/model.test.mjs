@@ -22,6 +22,14 @@ test('classifies post, reply, quote, long post and thread continuation', () => {
   assert.equal(classifyCreate(JSON.stringify({ variables: JSON.stringify({ reply: { in_reply_to_tweet_id: '9' } }) }), ok('8')).kind, 'reply');
 });
 
+test('edits are ignored; replies to yourself (e.g. thread started on phone) count as posts', () => {
+  assert.equal(classifyCreate(req({ edit_options: { previous_tweet_id: '1' } }), ok('9')), null);
+  const selfReply = JSON.stringify({ data: { create_tweet: { tweet_results: { result: { rest_id: '10', legacy: { user_id_str: '5', in_reply_to_user_id_str: '5' } } } } } });
+  const otherReply = JSON.stringify({ data: { create_tweet: { tweet_results: { result: { rest_id: '11', legacy: { user_id_str: '5', in_reply_to_user_id_str: '6' } } } } } });
+  assert.equal(classifyCreate(req({ reply: { in_reply_to_tweet_id: '77' } }), selfReply).kind, 'post');
+  assert.equal(classifyCreate(req({ reply: { in_reply_to_tweet_id: '77' } }), otherReply).kind, 'reply');
+});
+
 test('failed or malformed responses are not counted', () => {
   assert.equal(classifyCreate(req({}), JSON.stringify({ errors: [{ message: 'dup' }] })), null);
   assert.equal(classifyCreate(req({}), 'not json'), null);
