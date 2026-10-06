@@ -9,7 +9,7 @@
 [![Checks](https://github.com/hskelp9527-pixel/x-daily-rings/actions/workflows/checks.yml/badge.svg)](https://github.com/hskelp9527-pixel/x-daily-rings/actions/workflows/checks.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-<img src="docs/images/panel.png" width="260" alt="三个每日圆环">
+<img src="docs/images/panel.png" width="260" alt="三个每日圆环（浅色）"> <img src="docs/images/panel-dark.png" width="260" alt="三个每日圆环（深色）">
 
 ![正在关注页面里没回关的人被高亮](docs/images/following.png)
 
@@ -19,7 +19,7 @@
 
 - **三个圆环**：发帖、回复、引用，圆环中间是今天的数量。点 ⚙ 设目标，过了电脑上的 0 点自动清零。
 - **鼓励**：每个环到 25% / 50% / 75% 冒一句话，3 秒后消失；到 100% 放彩带。
-- **没回关高亮**：打开自己的「正在关注」页面往下滚，没有「关注了你」标签的人整行标红。卡片底部显示「没回关 M / 已扫 N」。
+- **没回关高亮**：打开自己的「正在关注」页面往下滚，没有「关注了你」标签的人整行标红。卡片底部分开显示「已扫描」「没回关」「今日取关」，取关后前两个数字不会减少。
 - **取关计数**：取关仍然点 X 自己的按钮，插件只记下今天取关了几个。
 - **悬浮卡片**：拖到哪里就停在哪里，点 – 收起成一行小字。
 - **导出**：每天的数量、目标、没回关名单，导出成一个 JSON 文件。

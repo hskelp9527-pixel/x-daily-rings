@@ -44,13 +44,13 @@ try {
   await tab.goto('https://x.com/me/following');
   const panel = tab.locator('#x-daily-rings');
   await panel.locator('.card').waitFor();
-  const lab = i => panel.locator('.ring .lab').nth(i).textContent();
-  const footer = () => panel.locator('.follow').textContent();
+  const goal = i => panel.locator('.ring .goal').nth(i).textContent();
+  const stats = () => tab.evaluate(() => [...document.querySelector('#x-daily-rings').shadowRoot.querySelectorAll('.stats b')].map(b => b.textContent).join(','));
 
   // follow-back highlighter
   await tab.waitForFunction(() => document.querySelectorAll('[data-xdr-no="1"]').length === 2);
   assert.equal(await tab.locator('[data-testid="UserCell"]').nth(0).getAttribute('data-xdr-no'), '0');
-  await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelector('.follow').textContent.startsWith('没回关 2 / 已扫 3'));
+  await tab.waitForFunction(() => [...document.querySelector('#x-daily-rings').shadowRoot.querySelectorAll('.stats b')].map(b => b.textContent).join(',') === '3,2,0');
 
   // goals
   await panel.locator('.gear').click();
@@ -58,7 +58,7 @@ try {
   await panel.locator('input[name=reply]').fill('2');
   await panel.locator('input[name=quote]').fill('4');
   await panel.locator('form button').click();
-  await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelector('.lab').textContent === '发帖 0/1');
+  await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelector('.goal').textContent === '0 / 1');
   assert.equal(await panel.locator('form').isVisible(), false, 'settings close after saving');
 
   // publish via X's own requests: fetch post, XHR reply, fetch quote, thread continuation, failed post
@@ -68,7 +68,7 @@ try {
   }, variables);
   const firstId = await createFetch({ tweet_text: 'hello' });
   assert.equal(firstId, '100', 'page still receives the original response');
-  await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelector('.lab').textContent === '发帖 1/1');
+  await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelector('.goal').textContent === '1 / 1');
   await panel.locator('.toast.show').waitFor();
   assert.match(await panel.locator('.toast').textContent(), /发帖 100%：今天的任务已达标/);
   assert.ok(await panel.locator('.confetti').count() > 0, 'confetti on full ring');
@@ -79,16 +79,16 @@ try {
     x.onload = done;
     x.send(JSON.stringify({ variables: { reply: { in_reply_to_tweet_id: '999' } } }));
   }));
-  await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelectorAll('.lab')[1].textContent === '回复 1/2');
+  await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelectorAll('.goal')[1].textContent === '1 / 2');
   assert.match(await panel.locator('.toast').textContent(), /回复 50%/);
 
   await createFetch({ attachment_url: 'https://x.com/someone/status/42' });
   await createFetch({ reply: { in_reply_to_tweet_id: firstId } });
   await createFetch({ tweet_text: 'FAIL' });
-  await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelectorAll('.lab')[2].textContent === '引用 1/4');
+  await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelectorAll('.goal')[2].textContent === '1 / 4');
   await tab.waitForTimeout(400);
-  assert.equal(await lab(0), '发帖 2/1', 'thread continuation counts as a post; failed post ignored');
-  assert.equal(await lab(1), '回复 1/2');
+  assert.equal(await goal(0), '2 / 1', 'thread continuation counts as a post; failed post ignored');
+  assert.equal(await goal(1), '1 / 2');
 
   // unfollow bob through X's own request; X then flips his button to "-follow"
   await tab.evaluate(() => new Promise(done => {
@@ -98,7 +98,8 @@ try {
     x.onload = done;
     x.send('include_profile_interstitial_type=1&user_id=222');
   }));
-  await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelector('.follow').textContent === '没回关 1 / 已扫 2 · 今日取关 1');
+  // unfollowed people stay counted: scanned 3, not-following-back 2, unfollowed today 1
+  await tab.waitForFunction(() => [...document.querySelector('#x-daily-rings').shadowRoot.querySelectorAll('.stats b')].map(b => b.textContent).join(',') === '3,2,1');
   await tab.waitForFunction(() => document.querySelectorAll('[data-testid="UserCell"]')[1].dataset.xdrNo === '0');
   await tab.screenshot({ path: join(output, 'following.png') });
 
@@ -110,12 +111,17 @@ try {
   await tab.mouse.up();
   await tab.waitForTimeout(3500);
   await panel.locator('.card').screenshot({ path: join(output, 'panel.png') });
+  await tab.evaluate(() => { document.body.style.backgroundColor = 'rgb(0,0,0)'; });
+  await panel.locator('.fold').click(); await panel.locator('.card.collapsed').waitFor();
+  await panel.locator('.fold').click(); await tab.waitForTimeout(400);
+  await panel.locator('.card').screenshot({ path: join(output, 'panel-dark.png') });
+  await tab.evaluate(() => { document.body.style.backgroundColor = 'rgb(255,255,255)'; });
   await panel.locator('.fold').click();
   await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelector('.card.collapsed'));
-  assert.equal(await panel.locator('.mini').textContent(), '📝2  ↩️1  🔁1');
+  assert.equal(await panel.locator('.mini').textContent(), '📝 2   ↩️ 1   🔁 1');
   await tab.reload();
   await panel.locator('.card.collapsed').waitFor();
-  assert.equal(await panel.locator('.mini').textContent(), '📝2  ↩️1  🔁1');
+  assert.equal(await panel.locator('.mini').textContent(), '📝 2   ↩️ 1   🔁 1');
   const pos = await panel.evaluate(el => [el.offsetLeft, el.offsetTop]);
   assert.ok(Math.abs(pos[0] - 170) < 15 && Math.abs(pos[1] - 140) < 15, `position kept: ${pos}`);
 

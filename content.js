@@ -1,17 +1,18 @@
 // Floating rings panel + "who doesn't follow back" highlighter. Isolated world, document_idle.
 (() => {
   const { KINDS, LABELS, FIRST_FULL, dayKey, classifyCreate, unfollowUid, crossedTier, message, emptyDay } = globalThis.XDR;
-  const COLORS = { post: '#1d9bf0', reply: '#00ba7c', quote: '#f91880' };
+  // Ring gradients [start, end], Apple activity-ring style.
+  const COLORS = { post: ['#64d2ff', '#0a84ff'], reply: ['#a6f4a4', '#30d158'], quote: ['#ff9fb5', '#ff2d55'] };
   const ICONS = { post: '📝', reply: '↩️', quote: '🔁' };
   const DEFAULT_GOALS = { post: 3, reply: 20, quote: 5 };
-  const R = 26, C = 2 * Math.PI * R;
+  const R = 27, C = 2 * Math.PI * R;
   const store = chrome.storage.local;
   const S = { goals: DEFAULT_GOALS, days: {}, ownIds: [], following: {}, panel: null };
   const today = () => ({ ...emptyDay(), ...S.days[dayKey()] });
 
   // ---------- page-side styles for the highlighter ----------
   const pageStyle = document.createElement('style');
-  pageStyle.textContent = '[data-xdr-no="1"]{background:rgba(249,24,128,.10)!important;box-shadow:inset 4px 0 0 #f91880!important}';
+  pageStyle.textContent = '[data-xdr-no="1"]{background:rgba(255,45,85,.09)!important;box-shadow:inset 4px 0 0 #ff2d55!important}';
   document.head.append(pageStyle);
 
   // ---------- panel ----------
@@ -20,38 +21,64 @@
   host.style.cssText = 'position:fixed;z-index:2147483000;left:0;top:0';
   const root = host.attachShadow({ mode: 'open' });
   root.innerHTML = `<style>
-    :host{all:initial}
-    .card{width:236px;font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;color:#0f1419;background:rgba(255,255,255,.96);border:1px solid #e1e8ed;border-radius:16px;box-shadow:0 8px 28px rgba(0,0,0,.14);overflow:hidden}
-    :host(.dark) .card{color:#e7e9ea;background:rgba(21,24,28,.96);border-color:#2f3336}
-    header{display:flex;align-items:center;gap:6px;padding:8px 10px;cursor:grab;user-select:none}
-    header b{font-size:13px}header .date{color:#8b98a5;font-size:12px;flex:1}
-    button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;border-radius:8px;padding:2px 6px}
-    button:hover{background:rgba(127,127,127,.15)}
-    .rings{display:flex;justify-content:space-between;padding:0 10px 6px}
-    .ring{text-align:center;width:68px}.ring svg{display:block;margin:auto}
-    .ring .num{font:700 16px system-ui;fill:currentColor}.ring .lab{font-size:11px;color:#8b98a5}
-    .ring.full svg{animation:pop .6s ease}
-    @keyframes pop{50%{transform:scale(1.12)}}
-    form{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0 10px 8px}
-    form label{font-size:11px;color:#8b98a5}form input{width:100%;box-sizing:border-box;font:inherit;color:inherit;background:transparent;border:1px solid #8b98a5;border-radius:6px;padding:2px 4px}
+    :host{all:initial;--ink:#1d1d1f;--sub:rgba(60,60,67,.62);--glass:rgba(255,255,255,.58);--edge:rgba(255,255,255,.75);--well:rgba(118,118,128,.10);--shadow:0 12px 40px rgba(0,0,0,.14),0 2px 6px rgba(0,0,0,.06)}
+    :host(.dark){--ink:#f5f5f7;--sub:rgba(235,235,245,.6);--glass:rgba(40,40,44,.55);--edge:rgba(255,255,255,.14);--well:rgba(118,118,128,.24);--shadow:0 12px 40px rgba(0,0,0,.5)}
+    *{box-sizing:border-box}
+    .card{width:256px;font:13px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Segoe UI","Microsoft YaHei",sans-serif;color:var(--ink);
+      background:linear-gradient(160deg,rgba(255,255,255,.22),rgba(255,255,255,0) 45%),var(--glass);
+      -webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);
+      border:1px solid var(--edge);border-radius:24px;box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.55);overflow:hidden}
+    .num,.stats b,.mini,form input{font-family:ui-rounded,"SF Pro Rounded",-apple-system,"Segoe UI",sans-serif;font-variant-numeric:tabular-nums}
+    header{display:flex;align-items:center;gap:6px;padding:12px 12px 4px 16px;cursor:grab;user-select:none}
+    header b{font-size:14px;font-weight:600;letter-spacing:.2px}
+    header .date{flex:1;color:var(--sub);font-size:12px}
+    button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+    .icon{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:var(--sub);font-size:14px;transition:background .15s}
+    .icon:hover{background:var(--well);color:var(--ink)}
+    .rings{display:flex;justify-content:space-between;padding:8px 14px 12px}
+    .ring{width:70px;text-align:center}
+    .dial{position:relative;width:70px;height:70px}
+    .dial svg{display:block}
+    .dial .num{position:absolute;inset:0;display:grid;place-items:center;font-size:20px;font-weight:700;letter-spacing:-.3px}
+    .ring .name{margin-top:6px;font-size:12px;font-weight:600;white-space:nowrap}
+    .ring .goal{font-size:11px;color:var(--sub);white-space:nowrap}
+    .ring.full .dial{animation:pop .6s cubic-bezier(.3,1.6,.5,1)}
+    @keyframes pop{50%{transform:scale(1.1)}}
+    form{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 14px 12px}
     form[hidden]{display:none}
-    form button,form button:hover{grid-column:1/-1;background:#1d9bf0;color:#fff;padding:4px}
-    footer{display:flex;align-items:center;gap:6px;padding:6px 10px 8px;border-top:1px solid rgba(127,127,127,.2);font-size:12px;color:#8b98a5}
-    footer span{flex:1}
-    .mini{display:none;padding:0 10px 8px;font-weight:600}
-    .collapsed .rings,.collapsed form,.collapsed footer{display:none}.collapsed .mini{display:block}
-    .toast{position:absolute;bottom:calc(100% + 8px);left:0;width:236px;box-sizing:border-box;padding:8px 12px;border-radius:12px;background:#0f1419;color:#fff;font:13px/1.45 system-ui,sans-serif;opacity:0;transform:translateY(6px);transition:.25s;pointer-events:none}
+    form label{display:grid;gap:3px;font-size:11px;color:var(--sub);white-space:nowrap}
+    form input{width:100%;font-size:13px;font-weight:600;color:var(--ink);background:var(--well);border:0;border-radius:9px;padding:6px 8px;outline:none}
+    form input:focus{box-shadow:0 0 0 2px rgba(10,132,255,.5)}
+    form button{grid-column:1/-1;padding:7px;border-radius:12px;background:#0a84ff;color:#fff;font-weight:600}
+    form button:hover{background:#0077ed}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr) auto;align-items:center;gap:4px;margin:0 10px 10px;padding:8px 6px 8px 12px;border-radius:16px;background:var(--well)}
+    .stats div{display:grid;white-space:nowrap}
+    .stats b{font-size:15px;font-weight:700}
+    .stats span{font-size:10.5px;color:var(--sub)}
+    .stats .no b{color:#ff2d55}
+    .export{padding:5px 10px;border-radius:10px;font-size:12px;font-weight:600;color:#0a84ff;white-space:nowrap}
+    .export:hover{background:rgba(10,132,255,.12)}
+    .mini{display:none;padding:2px 16px 12px;font-size:14px;font-weight:600;white-space:nowrap}
+    .collapsed .rings,.collapsed form,.collapsed .stats{display:none}.collapsed .mini{display:block}
+    .toast{position:absolute;bottom:calc(100% + 10px);left:0;width:256px;padding:10px 14px;border-radius:18px;color:#fff;font:13px/1.45 -apple-system,"PingFang SC","Segoe UI",sans-serif;
+      background:rgba(28,28,30,.72);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);
+      border:1px solid rgba(255,255,255,.14);box-shadow:0 10px 30px rgba(0,0,0,.25);opacity:0;transform:translateY(8px) scale(.98);transition:.3s cubic-bezier(.2,.9,.3,1);pointer-events:none}
     .toast.show{opacity:1;transform:none}
     .confetti{position:fixed;top:-12px;width:8px;height:12px;border-radius:2px;animation:fall linear forwards;pointer-events:none}
     @keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
   </style>
   <div class="toast"></div>
   <div class="card">
-    <header><b>今日输出</b><span class="date"></span><button class="gear" title="设置目标">⚙</button><button class="fold" title="收起 / 展开">–</button></header>
+    <header><b>今日输出</b><span class="date"></span><button class="icon gear" title="设置目标">⚙︎</button><button class="icon fold" title="收起 / 展开">–</button></header>
     <div class="rings"></div>
     <form hidden>${KINDS.map(k => `<label>${LABELS[k]}目标<input name="${k}" type="number" min="1" step="1"></label>`).join('')}<button>保存目标</button></form>
     <div class="mini"></div>
-    <footer><span class="follow"></span><button class="export" title="导出全部数据为 JSON">导出</button></footer>
+    <div class="stats">
+      <div class="scan"><b>0</b><span>已扫描</span></div>
+      <div class="no"><b>0</b><span>没回关</span></div>
+      <div class="unf"><b>0</b><span>今日取关</span></div>
+      <button class="export" title="导出全部数据为 JSON">导出</button>
+    </div>
   </div>`;
   const $ = s => root.querySelector(s);
   const card = $('.card'), form = $('form');
@@ -60,17 +87,22 @@
     const day = today();
     $('.date').textContent = dayKey().slice(5);
     $('.rings').innerHTML = KINDS.map(k => {
-      const goal = S.goals[k], n = day[k], p = Math.min(1, n / goal);
-      return `<div class="ring${p >= 1 ? ' full' : ''}"><svg width="64" height="64" viewBox="0 0 64 64">
-        <circle cx="32" cy="32" r="${R}" fill="none" stroke="${COLORS[k]}" stroke-opacity=".18" stroke-width="7"/>
-        <circle cx="32" cy="32" r="${R}" fill="none" stroke="${COLORS[k]}" stroke-width="7" stroke-linecap="round"
-          stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - p)}" transform="rotate(-90 32 32)" style="transition:stroke-dashoffset .5s"/>
-        <text class="num" x="32" y="38" text-anchor="middle">${n}</text></svg>
-        <div class="lab">${LABELS[k]} ${n}/${goal}</div></div>`;
+      const goal = S.goals[k], n = day[k], p = Math.min(1, n / goal), [c1, c2] = COLORS[k];
+      return `<div class="ring${p >= 1 ? ' full' : ''}"><div class="dial"><svg width="70" height="70" viewBox="0 0 70 70">
+        <defs><linearGradient id="g-${k}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
+        <circle cx="35" cy="35" r="${R}" fill="none" stroke="${c2}" stroke-opacity=".16" stroke-width="7"/>
+        <circle cx="35" cy="35" r="${R}" fill="none" stroke="url(#g-${k})" stroke-width="7" stroke-linecap="round" opacity="${n ? 1 : 0}"
+          stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - p)}" transform="rotate(-90 35 35)"
+          style="transition:stroke-dashoffset .6s cubic-bezier(.2,.9,.3,1);filter:drop-shadow(0 0 3px ${c2}88)"/></svg>
+        <span class="num">${n}</span></div>
+        <div class="name">${LABELS[k]}</div><div class="goal">${n} / ${goal}</div></div>`;
     }).join('');
-    $('.mini').textContent = KINDS.map(k => `${ICONS[k]}${day[k]}`).join('  ');
-    const scanned = Object.values(S.following), no = scanned.filter(u => !u.f).length;
-    $('.follow').textContent = (scanned.length ? `没回关 ${no} / 已扫 ${scanned.length} · ` : '') + `今日取关 ${day.unfollow}`;
+    $('.mini').textContent = KINDS.map(k => `${ICONS[k]} ${day[k]}`).join('   ');
+    // Unfollowed people stay in both tallies (marked gone); only their highlight goes away.
+    const scanned = Object.values(S.following);
+    $('.scan b').textContent = scanned.length;
+    $('.no b').textContent = scanned.filter(u => !u.f).length;
+    $('.unf b').textContent = day.unfollow;
     card.classList.toggle('collapsed', !!S.panel?.collapsed);
     const bg = getComputedStyle(document.body).backgroundColor.match(/\d+/g)?.map(Number) ?? [255, 255, 255];
     host.classList.toggle('dark', bg[0] + bg[1] + bg[2] < 384);
@@ -78,8 +110,8 @@
 
   function place() {
     const p = S.panel ?? {};
-    const x = p.x ?? innerWidth - 260, y = p.y ?? innerHeight - 290;
-    host.style.left = Math.max(0, Math.min(x, innerWidth - 240)) + 'px';
+    const x = p.x ?? innerWidth - 280, y = p.y ?? innerHeight - 300;
+    host.style.left = Math.max(0, Math.min(x, innerWidth - 260)) + 'px';
     host.style.top = Math.max(0, Math.min(y, innerHeight - 40)) + 'px';
   }
 
@@ -93,7 +125,7 @@
   }
 
   function confetti() {
-    const colors = Object.values(COLORS).concat('#ffd400', '#7856ff');
+    const colors = Object.values(COLORS).flat().concat('#ffd60a', '#bf5af2');
     for (let i = 0; i < 80; i++) {
       const c = document.createElement('i');
       c.className = 'confetti';
@@ -112,7 +144,7 @@
       if (url.includes('/friendships/destroy.json')) {
         day.unfollow++;
         const uid = unfollowUid(body);
-        for (const [h, u] of Object.entries(following)) if (u.uid === uid) delete following[h];
+        for (const u of Object.values(following)) if (u.uid === uid) u.gone = true;
         await store.set({ days: { ...days, [key]: day }, following });
         return;
       }
@@ -145,7 +177,7 @@
       const [uid, state] = btn.dataset.testid.split('-');
       const followsYou = !!cell.querySelector('[data-testid="userFollowIndicator"]');
       if (state === 'unfollow') next[handle] = { uid, f: followsYou };
-      else delete next[handle];
+      else if (next[handle]) next[handle] = { ...next[handle], gone: true };
       cell.dataset.xdrNo = state === 'unfollow' && !followsYou ? '1' : '0';
     }
     if (JSON.stringify(next) !== JSON.stringify(S.following)) store.set({ following: next }).catch(() => {});
@@ -165,11 +197,13 @@
     store.set({ goals });
   };
   $('.export').onclick = () => {
+    const people = Object.entries(S.following);
     const data = {
       exportedAt: new Date().toISOString(),
       goals: S.goals,
       days: S.days,
-      notFollowingBack: Object.entries(S.following).filter(([, u]) => !u.f).map(([h]) => '@' + h)
+      notFollowingBack: people.filter(([, u]) => !u.f && !u.gone).map(([h]) => '@' + h),
+      unfollowed: people.filter(([, u]) => u.gone).map(([h]) => '@' + h)
     };
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
