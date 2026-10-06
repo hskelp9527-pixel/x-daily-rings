@@ -10,27 +10,27 @@ globalThis.XDR = (() => {
       '怕什么真理无穷，进一寸有一寸的欢喜。——胡适', '千里之行，始于足下。——老子',
       'Done is better than perfect. —— Facebook 办公室标语',
       'Inspiration exists, but it has to find you working. —— Picasso',
-      'Warm-up done. Keep the streak going.', 'Real artists ship. —— Steve Jobs'
+      'Warm-up done. Keep the streak going.', 'Real artists ship. —— Steve Jobs',
+      "You miss 100% of the shots you don't take. —— Wayne Gretzky"
     ],
     50: [
-      '过半了，剩下的一半靠坚持。', '一半到手，别让手停下来。', '慢慢来，比较快。',
+      '过半了，剩下的一半靠坚持。', '一半到手，别让手停下来。', '一条一条来，手感会越来越顺。',
       '把每一件简单的事做好就是不简单。——张瑞敏', '锲而不舍，金石可镂。——荀子',
-      '按数量练的那组，反而做得最好。——《艺术与恐惧》', "Halfway there. Don't stop now.",
-      'Small daily improvements over time lead to stunning results. —— Robin Sharma',
-      "You miss 100% of the shots you don't take. —— Wayne Gretzky"
+      '只管多做的那组，最后作品反而最好。——《艺术与恐惧》', "Halfway there. Don't stop now.",
+      'Small daily improvements over time lead to stunning results. —— Robin Sharma'
     ],
     75: [
       '只差最后一段了，冲一下。', '快了，再来几条就满环。', '最后这几条，往往是最有手感的几条。',
       '别在这里停，满环就差一口气。', '行百里者半九十。——《战国策》',
-      'Show up, show up, show up, and after a while the muse shows up, too. —— Isabel Allende',
-      'Success is the sum of small efforts, repeated day in and day out. —— Robert Collier',
+      'Show up, show up, show up. —— Isabel Allende',
+      'Bird by bird. —— Anne Lamott',
       'Almost there. Finish strong.'
     ],
     100: [
       FIRST_FULL, '满环！今天的输出不打折。', '收工！数量就是这样一条一条攒出来的。',
       '达标了。明天的你，会感谢今天没偷懒的你。', '量变攒够了，质变就在路上。',
-      '苟日新，日日新，又日新。——《礼记·大学》', "Be so good they can't ignore you. —— Steve Martin",
-      'Stay hungry, stay foolish. —— Steve Jobs', 'Ring closed. See you tomorrow.'
+      '苟日新，日日新，又日新。——《礼记·大学》', '功不唐捐。——胡适',
+      'Stay hungry, stay foolish. —— Whole Earth Catalog', 'Ring closed. See you tomorrow.'
     ]
   };
 

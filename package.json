@@ -1,6 +1,6 @@
 {
   "name": "x-daily-rings",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "Daily post / reply / quote rings and a follow-back highlighter for X, as a floating panel.",
