@@ -104,8 +104,14 @@
     $('.no b').textContent = scanned.filter(u => !u.f).length;
     $('.unf b').textContent = day.unfollow;
     card.classList.toggle('collapsed', !!S.panel?.collapsed);
-    const bg = getComputedStyle(document.body).backgroundColor.match(/\d+/g)?.map(Number) ?? [255, 255, 255];
-    host.classList.toggle('dark', bg[0] + bg[1] + bg[2] < 384);
+    $('.fold').textContent = S.panel?.collapsed ? '+' : '–';
+    theme();
+  }
+
+  // Body is transparent while X boots; reading that as black made the card flash dark on every reload.
+  function theme() {
+    const [r, g, b, a = 1] = getComputedStyle(document.body).backgroundColor.match(/[\d.]+/g)?.map(Number) ?? [];
+    if (a > 0.5) host.classList.toggle('dark', r + g + b < 384);
   }
 
   function place() {
@@ -167,6 +173,7 @@
   let scanTimer = 0;
   function scan() {
     scanTimer = 0;
+    theme();
     const me = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]')?.getAttribute('href')?.slice(1);
     if (!me || location.pathname.toLowerCase() !== `/${me.toLowerCase()}/following`) return;
     const next = { ...S.following };
