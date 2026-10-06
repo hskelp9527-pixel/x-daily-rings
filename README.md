@@ -43,7 +43,7 @@
 
 ## 安装，三步即可
 
-目前通过开发者模式安装，尚未上架 Chrome Web Store 或 Edge Add-ons。
+目前通过开发者模式安装，尚未上架 Chrome Web Store 或 Edge Add-ons。Windows 和 macOS 上的 Chrome、Edge 都能用（Safari 不支持）。
 
 1. 在 [Releases](https://github.com/hskelp9527-pixel/x-daily-rings/releases/latest) 下载 **x-daily-rings.zip**，解压到一个准备长期保留的文件夹。
 2. Chrome 地址栏打开 `chrome://extensions`，Edge 打开 `edge://extensions`，开启「开发者模式」。
