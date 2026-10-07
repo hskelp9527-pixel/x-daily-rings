@@ -1,13 +1,14 @@
 // Floating rings panel + "who doesn't follow back" highlighter. Isolated world, document_idle.
 (() => {
-  const { KINDS, LABELS, FIRST_FULL, dayKey, classifyCreate, unfollowUid, crossedTier, message, emptyDay } = globalThis.XDR;
+  const { KINDS, LABELS, FIRST_FULL, dayKey, classifyCreate, profileTweets, followLimited, unfollowUid, crossedTier, message, emptyDay } = globalThis.XDR;
   // Ring gradients [start, end], Apple activity-ring style.
   const COLORS = { post: ['#64d2ff', '#0a84ff'], reply: ['#a6f4a4', '#30d158'], quote: ['#ff9fb5', '#ff2d55'] };
   const ICONS = { post: '📝', reply: '↩️', quote: '🔁' };
   const DEFAULT_GOALS = { post: 3, reply: 20, quote: 5 };
   const R = 27, C = 2 * Math.PI * R;
+  const LIMIT_MS = 30 * 60 * 1000; // ponytail: X doesn't publish its follow cooldown; 30 min is a rule of thumb
   const store = chrome.storage.local;
-  const S = { goals: DEFAULT_GOALS, days: {}, ownIds: [], following: {}, panel: null };
+  const S = { goals: DEFAULT_GOALS, days: {}, ownIds: [], following: {}, panel: null, followLimitUntil: 0 };
   const today = () => ({ ...emptyDay(), ...S.days[dayKey()] });
 
   // ---------- page-side styles for the highlighter ----------
@@ -51,6 +52,8 @@
     form input:focus{box-shadow:0 0 0 2px rgba(10,132,255,.5)}
     form button{grid-column:1/-1;padding:7px;border-radius:12px;background:#0a84ff;color:#fff;font-weight:600}
     form button:hover{background:#0077ed}
+    .limit{margin:0 10px 8px;padding:7px 12px;border-radius:14px;background:rgba(255,159,10,.16);font-size:12px;font-weight:600}
+    .limit[hidden]{display:none}
     .stats{display:grid;grid-template-columns:repeat(3,1fr) auto;align-items:center;gap:4px;margin:0 10px 10px;padding:8px 6px 8px 12px;border-radius:16px;background:var(--well)}
     .stats div{display:grid;white-space:nowrap}
     .stats b{font-size:15px;font-weight:700}
@@ -73,6 +76,7 @@
     <div class="rings"></div>
     <form hidden>${KINDS.map(k => `<label>${LABELS[k]}目标<input name="${k}" type="number" min="1" step="1"></label>`).join('')}<button>保存目标</button></form>
     <div class="mini"></div>
+    <div class="limit" hidden></div>
     <div class="stats">
       <div class="scan"><b>0</b><span>已扫描</span></div>
       <div class="no"><b>0</b><span>没回关</span></div>
@@ -98,13 +102,21 @@
         <div class="name">${LABELS[k]}</div><div class="goal">${n} / ${goal}</div></div>`;
     }).join('');
     $('.mini').textContent = KINDS.map(k => `${ICONS[k]} ${day[k]}`).join('   ');
-    // Unfollowed people stay in both tallies (marked gone); only their highlight goes away.
-    const scanned = Object.values(S.following);
+    // Today's scan only (d = day last seen). Unfollowed people stay in both tallies (marked gone); only their highlight goes away.
+    const scanned = Object.values(S.following).filter(u => u.d === dayKey());
     $('.scan b').textContent = scanned.length;
     $('.no b').textContent = scanned.filter(u => !u.f).length;
     $('.unf b').textContent = day.unfollow;
     card.classList.toggle('collapsed', !!S.panel?.collapsed);
     $('.fold').textContent = S.panel?.collapsed ? '+' : '–';
+    const until = S.followLimitUntil;
+    if (until && Date.now() >= until) {
+      S.followLimitUntil = 0;
+      store.set({ followLimitUntil: 0 });
+      toast('✅ 关注限制应该解除了，可以继续关注。', 15000);
+    }
+    $('.limit').hidden = !S.followLimitUntil;
+    $('.limit').textContent = `⏳ 关注被限速，约 ${new Date(until).toTimeString().slice(0, 5)} 解除`;
     theme();
   }
 
@@ -122,12 +134,12 @@
   }
 
   let toastTimer;
-  function toast(text) {
+  function toast(text, ms = 3000) {
     const t = $('.toast');
     t.textContent = text;
     t.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+    toastTimer = setTimeout(() => t.classList.remove('show'), ms);
   }
 
   function confetti() {
@@ -142,39 +154,66 @@
   }
 
   // ---------- events from hook.js ----------
+  // Counts new tweets; any id already in ownIds was counted before (desktop or an earlier profile visit).
+  async function record(items, fromProfile) {
+    const { days = {}, ownIds = [] } = await store.get(['days', 'ownIds']);
+    const key = dayKey(), before = { ...emptyDay(), ...days[key] }, day = { ...before }, known = new Set(ownIds), fresh = [];
+    let cheer = null;
+    for (const { kind, id } of items) {
+      if (id && known.has(String(id))) continue;
+      if (id) { known.add(String(id)); fresh.unshift(String(id)); }
+      const prev = day[kind]++;
+      const tier = crossedTier(prev, day[kind], S.goals[kind]);
+      // The day's first closed ring always gets the signature line.
+      if (tier) cheer = { kind, tier, line: tier === 100 && !day.full ? FIRST_FULL : message(tier) };
+      if (tier === 100) day.full = true;
+    }
+    const added = KINDS.filter(k => day[k] > before[k]);
+    if (!added.length) return;
+    await store.set({ days: { ...days, [key]: day }, ownIds: [...fresh, ...ownIds].slice(0, 500) });
+    if (cheer) {
+      toast(`${ICONS[cheer.kind]} ${LABELS[cheer.kind]} ${cheer.tier}%：${cheer.line}`);
+      if (cheer.tier === 100) confetti();
+    } else if (fromProfile) {
+      toast(`📥 从主页补录：${added.map(k => `${LABELS[k]} +${day[k] - before[k]}`).join('，')}`);
+    }
+  }
+
   document.addEventListener('xdr:net', async e => {
     try {
-      const { url, body, text } = JSON.parse(e.detail);
-      const { days = {}, ownIds = [], following = {} } = await store.get(['days', 'ownIds', 'following']);
-      const key = dayKey(), day = { ...emptyDay(), ...days[key] };
+      const { url, body, text, status } = JSON.parse(e.detail);
+      const ok = status >= 200 && status < 300;
+      if (url.includes('/friendships/create.json')) {
+        if (followLimited(status, text)) {
+          await store.set({ followLimitUntil: Date.now() + LIMIT_MS });
+          toast('⏳ 关注被 X 限速了，30 分钟后提醒你。', 6000);
+        } else if (ok && S.followLimitUntil) await store.set({ followLimitUntil: 0 }); // follows work again
+        return;
+      }
+      if (!ok) return;
+      if (url.includes('/UserTweetsAndReplies')) return await record(profileTweets(text, myHandle(), dayKey()), true);
       if (url.includes('/friendships/destroy.json')) {
+        const { days = {}, following = {} } = await store.get(['days', 'following']);
+        const key = dayKey(), day = { ...emptyDay(), ...days[key] };
         day.unfollow++;
         const uid = unfollowUid(body);
         for (const u of Object.values(following)) if (u.uid === uid) u.gone = true;
         await store.set({ days: { ...days, [key]: day }, following });
         return;
       }
+      const { ownIds = [] } = await store.get('ownIds');
       const r = classifyCreate(body, text, new Set(ownIds));
-      if (!r) return;
-      const prev = day[r.kind]++;
-      const tier = crossedTier(prev, day[r.kind], S.goals[r.kind]);
-      // The day's first closed ring always gets the signature line.
-      const cheer = tier === 100 && !day.full ? FIRST_FULL : tier && message(tier);
-      if (tier === 100) day.full = true;
-      await store.set({ days: { ...days, [key]: day }, ownIds: r.id ? [String(r.id), ...ownIds].slice(0, 500) : ownIds });
-      if (tier) {
-        toast(`${ICONS[r.kind]} ${LABELS[r.kind]} ${tier}%：${cheer}`);
-        if (tier === 100) confetti();
-      }
+      if (r) await record([r], false);
     } catch { /* extension reloaded or unexpected payload: never break X */ }
   });
 
   // ---------- "who doesn't follow back" on your own Following page ----------
+  const myHandle = () => document.querySelector('a[data-testid="AppTabBar_Profile_Link"]')?.getAttribute('href')?.slice(1);
   let scanTimer = 0;
   function scan() {
     scanTimer = 0;
     theme();
-    const me = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]')?.getAttribute('href')?.slice(1);
+    const me = myHandle();
     if (!me || location.pathname.toLowerCase() !== `/${me.toLowerCase()}/following`) return;
     const next = { ...S.following };
     for (const cell of document.querySelectorAll('[data-testid="UserCell"]')) {
@@ -183,7 +222,7 @@
       if (!handle || !btn) continue;
       const [uid, state] = btn.dataset.testid.split('-');
       const followsYou = !!cell.querySelector('[data-testid="userFollowIndicator"]');
-      if (state === 'unfollow') next[handle] = { uid, f: followsYou };
+      if (state === 'unfollow') next[handle] = { uid, f: followsYou, d: dayKey() };
       else if (next[handle]) next[handle] = { ...next[handle], gone: true };
       cell.dataset.xdrNo = state === 'unfollow' && !followsYou ? '1' : '0';
     }

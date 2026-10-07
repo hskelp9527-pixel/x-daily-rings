@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 const ctx = { URLSearchParams };
 vm.runInNewContext(readFileSync(new URL('../model.js', import.meta.url), 'utf8'), ctx);
-const { classifyCreate, unfollowUid, crossedTier, dayKey, message } = ctx.XDR;
+const { classifyCreate, profileTweets, followLimited, unfollowUid, crossedTier, dayKey, message } = ctx.XDR;
 
 const ok = id => JSON.stringify({ data: { create_tweet: { tweet_results: { result: { rest_id: id } } } } });
 const req = variables => JSON.stringify({ variables, queryId: 'x' });
@@ -59,4 +59,33 @@ test('milestones fire once per crossed tier, highest wins', () => {
 test('day key uses local calendar date', () => {
   assert.equal(dayKey(new Date(2026, 9, 6, 23, 59)), '2026-10-06');
   assert.equal(dayKey(new Date(2026, 9, 7, 0, 0)), '2026-10-07');
+});
+
+test('profile timeline: own tweets from today, classified like CreateTweet, retweets and others skipped', () => {
+  const at = new Date(2026, 9, 7, 9).toUTCString(), yday = new Date(2026, 9, 6, 9).toUTCString();
+  const tw = (id, name, legacy, created = at) => ({ __typename: 'Tweet', rest_id: id,
+    core: { user_results: { result: { core: { screen_name: name } } } },
+    legacy: { full_text: 't', created_at: created, user_id_str: name === 'Me' ? '5' : '6', ...legacy } });
+  const quoted = tw('6', 'Me', {});
+  const json = JSON.stringify({ data: { user: { result: { timeline: { timeline: { instructions: [{ entries: [
+    { content: { itemContent: { tweet_results: { result: tw('1', 'Me', {}) } } } },
+    { content: { itemContent: { tweet_results: { result: tw('2', 'Me', { in_reply_to_status_id_str: '9', in_reply_to_user_id_str: '6' }) } } } },
+    { content: { itemContent: { tweet_results: { result: tw('3', 'Me', { in_reply_to_status_id_str: '1', in_reply_to_user_id_str: '5' }) } } } },
+    { content: { itemContent: { tweet_results: { result: { ...tw('4', 'Me', { is_quote_status: true }), quoted_status_result: { result: quoted } } } } } },
+    { content: { itemContent: { tweet_results: { result: tw('7', 'Me', { retweeted_status_result: {} }) } } } },
+    { content: { items: [{ item: { itemContent: { tweet_results: { result: tw('8', 'other', {}) } } } }] } },
+    { content: { itemContent: { tweet_results: { result: tw('10', 'Me', {}, yday) } } } }
+  ] }] } } } } } });
+  const got = Object.fromEntries(profileTweets(json, 'me', '2026-10-07').map(t => [t.id, t.kind]));
+  assert.deepEqual({ ...got }, { 1: 'post', 2: 'reply', 3: 'post', 4: 'quote', 6: 'post' });
+  assert.equal(profileTweets(json, undefined, '2026-10-07').length, 0);
+  assert.equal(profileTweets('nope', 'me', '2026-10-07').length, 0);
+});
+
+test('follow rate limit is recognised from status or error code', () => {
+  assert.equal(followLimited(429, ''), true);
+  assert.equal(followLimited(403, JSON.stringify({ errors: [{ code: 161, message: 'You are unable to follow more people at this time.' }] })), true);
+  assert.equal(followLimited(200, JSON.stringify({ errors: [{ code: 88 }] })), true);
+  assert.equal(followLimited(403, JSON.stringify({ errors: [{ code: 162 }] })), false);
+  assert.equal(followLimited(200, '{"id_str":"1"}'), false);
 });

@@ -1,9 +1,10 @@
 // Runs in the page (MAIN world) at document_start. Sends no requests of its own:
-// it only watches X's own publish / unfollow responses and forwards them to content.js.
+// it only watches X's own publish / follow / unfollow / profile-timeline responses and forwards them to content.js.
 (() => {
-  const watched = url => /\/(CreateTweet|CreateNoteTweet)$|\/friendships\/destroy\.json$/.test(String(url).split('?')[0]);
-  const emit = (url, body, text) =>
-    document.dispatchEvent(new CustomEvent('xdr:net', { detail: JSON.stringify({ url: String(url), body: typeof body === 'string' ? body : body instanceof URLSearchParams ? String(body) : '', text }) }));
+  const watched = url => /\/(CreateTweet|CreateNoteTweet|UserTweetsAndReplies)$|\/friendships\/(create|destroy)\.json$/.test(String(url).split('?')[0]);
+  // Failed responses are forwarded too (with status): a refused follow is how rate limits show up.
+  const emit = (url, body, text, status) =>
+    document.dispatchEvent(new CustomEvent('xdr:net', { detail: JSON.stringify({ url: String(url), body: typeof body === 'string' ? body : body instanceof URLSearchParams ? String(body) : '', text, status }) }));
 
   const nativeFetch = window.fetch;
   window.fetch = function (input, init) {
@@ -12,7 +13,7 @@
     const body = !watched(url) ? null : init?.body != null ? Promise.resolve(init.body) : input instanceof Request ? input.clone().text() : Promise.resolve('');
     const promise = nativeFetch.apply(this, arguments);
     if (body) {
-      promise.then(res => res.ok && Promise.all([body, res.clone().text()]).then(([b, t]) => emit(url, b, t))).catch(() => {});
+      promise.then(res => Promise.all([body, res.clone().text()]).then(([b, t]) => emit(url, b, t, res.status))).catch(() => {});
     }
     return promise;
   };
@@ -25,9 +26,8 @@
   XMLHttpRequest.prototype.send = function (body) {
     if (watched(this.__xdrUrl ?? '')) {
       this.addEventListener('load', () => {
-        if (this.status < 200 || this.status >= 300) return;
         const text = this.responseType === 'json' ? JSON.stringify(this.response) : ['', 'text'].includes(this.responseType) ? this.responseText : '';
-        emit(this.__xdrUrl, body, text);
+        emit(this.__xdrUrl, body, text, this.status);
       });
     }
     return send.apply(this, arguments);

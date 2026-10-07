@@ -37,6 +37,14 @@ try {
     const json = body.includes('FAIL') ? { errors: [{ message: 'duplicate' }] } : { data: { create_tweet: { tweet_results: { result: { rest_id: String(nextId++) } } } } };
     route.fulfill({ contentType: 'application/json', body: JSON.stringify(json) });
   });
+  await context.route('https://x.com/i/api/1.1/friendships/create.json', route =>
+    route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ errors: [{ code: 161, message: 'You are unable to follow more people at this time.' }] }) }));
+  const now = new Date().toUTCString();
+  const tw = (id, legacy) => ({ tweet_results: { result: { __typename: 'Tweet', rest_id: id, core: { user_results: { result: { core: { screen_name: 'me' } } } },
+    legacy: { full_text: 't', created_at: now, user_id_str: '5', ...legacy } } } });
+  await context.route('https://x.com/i/api/graphql/abc/UserTweetsAndReplies?**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: { entries: [
+    tw('100', {}), tw('500', { in_reply_to_status_id_str: '9', in_reply_to_user_id_str: '6' }), tw('501', { is_quote_status: true })
+  ] } }) }));
 
   const tab = await context.newPage();
   const errors = [];
@@ -90,6 +98,17 @@ try {
   assert.equal(await goal(0), '2 / 1', 'thread continuation counts as a post; failed post ignored');
   assert.equal(await goal(1), '1 / 2');
 
+  // profile Replies tab: tweets from the phone get added, the one already counted (100) does not
+  await tab.evaluate(() => fetch('/i/api/graphql/abc/UserTweetsAndReplies?variables=%7B%7D'));
+  await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelectorAll('.goal')[2].textContent === '2 / 4');
+  assert.equal(await goal(0), '2 / 1', 'already-counted tweet is not double counted');
+  assert.equal(await goal(1), '2 / 2');
+
+  // a follow refused by X's rate limit shows the cooldown banner
+  await tab.evaluate(() => fetch('/i/api/1.1/friendships/create.json', { method: 'POST', body: 'user_id=9' }));
+  await panel.locator('.limit:not([hidden])').waitFor();
+  assert.match(await panel.locator('.limit').textContent(), /关注被限速，约 \d\d:\d\d 解除/);
+
   // unfollow bob through X's own request; X then flips his button to "-follow"
   await tab.evaluate(() => new Promise(done => {
     document.querySelector('[data-testid="222-unfollow"]').dataset.testid = '222-follow';
@@ -118,10 +137,10 @@ try {
   await tab.evaluate(() => { document.body.style.backgroundColor = 'rgb(255,255,255)'; });
   await panel.locator('.fold').click();
   await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelector('.card.collapsed'));
-  assert.equal(await panel.locator('.mini').textContent(), '📝 2   ↩️ 1   🔁 1');
+  assert.equal(await panel.locator('.mini').textContent(), '📝 2   ↩️ 2   🔁 2');
   await tab.reload();
   await panel.locator('.card.collapsed').waitFor();
-  assert.equal(await panel.locator('.mini').textContent(), '📝 2   ↩️ 1   🔁 1');
+  assert.equal(await panel.locator('.mini').textContent(), '📝 2   ↩️ 2   🔁 2');
   const pos = await panel.evaluate(el => [el.offsetLeft, el.offsetTop]);
   assert.ok(Math.abs(pos[0] - 170) < 15 && Math.abs(pos[1] - 140) < 15, `position kept: ${pos}`);
 

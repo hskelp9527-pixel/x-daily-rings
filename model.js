@@ -61,7 +61,29 @@ globalThis.XDR = (() => {
     return { kind: 'post', id };
   }
 
-  const unfollowUid = body => new URLSearchParams(typeof body === 'string' ? body : '').get('user_id');
+  // X's own UserTweetsAndReplies response (your profile's Replies tab) → your tweets from day `key`,
+  // same rules as classifyCreate. Catches what you published on your phone. Retweets are skipped.
+  function profileTweets(text, handle, key) {
+    const out = new Map(), me = String(handle ?? '').toLowerCase();
+    const walk = o => {
+      if (!o || typeof o !== 'object') return;
+      const l = o.legacy, u = o.core?.user_results?.result;
+      if (o.rest_id && typeof l?.full_text === 'string' && l.created_at && !l.retweeted_status_result
+        && String(u?.core?.screen_name ?? u?.legacy?.screen_name).toLowerCase() === me && dayKey(new Date(l.created_at)) === key) {
+        const kind = l.in_reply_to_status_id_str ? (l.in_reply_to_user_id_str === l.user_id_str ? 'post' : 'reply') : l.is_quote_status ? 'quote' : 'post';
+        out.set(String(o.rest_id), kind);
+      }
+      for (const v of Object.values(o)) walk(v);
+    };
+    if (me) walk(parse(text));
+    return [...out].map(([id, kind]) => ({ kind, id }));
+  }
+
+  // A refused friendships/create: 429, or error 88 (rate limit) / 161 (can't follow more right now).
+  const followLimited = (status, text) =>
+    status === 429 || (parse(text)?.errors ?? []).some(e => e?.code === 88 || e?.code === 161);
+
+  const unfollowUid =body => new URLSearchParams(typeof body === 'string' ? body : '').get('user_id');
 
   // Highest tier crossed going from prev to next, or 0.
   function crossedTier(prev, next, goal) {
@@ -78,5 +100,5 @@ globalThis.XDR = (() => {
 
   const emptyDay = () => ({ post: 0, reply: 0, quote: 0, unfollow: 0, full: false });
 
-  return { KINDS, LABELS, TIERS, MESSAGES, FIRST_FULL, dayKey, classifyCreate, unfollowUid, crossedTier, message, emptyDay };
+  return { KINDS, LABELS, TIERS, MESSAGES, FIRST_FULL, dayKey, classifyCreate, profileTweets, followLimited, unfollowUid, crossedTier, message, emptyDay };
 })();

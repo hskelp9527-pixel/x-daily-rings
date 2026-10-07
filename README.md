@@ -18,9 +18,11 @@
 ## 能做什么
 
 - **三个圆环**：发帖、回复、引用，圆环中间是今天的数量。点 ⚙ 设目标，过了电脑上的 0 点自动清零。
+- **补录手机上发的**：在电脑上打开自己主页的「回复」标签，往下滚到出现昨天的帖子，今天在手机上发的帖子、回复、引用会补进圆环。按帖子 ID 去重，不会重复计数。
 - **鼓励**：每个环到 25% / 50% / 75% 冒一句话，3 秒后消失；到 100% 放彩带。
-- **没回关高亮**：打开自己的「正在关注」页面往下滚，没有「关注了你」标签的人整行标红。卡片底部分开显示「已扫描」「没回关」「今日取关」，取关后前两个数字不会减少。
+- **没回关高亮**：打开自己的「正在关注」页面往下滚，没有「关注了你」标签的人整行标红。卡片底部分开显示「已扫描」「没回关」「今日取关」，都只算今天扫描到的人，每天清零；取关后前两个数字不会减少。
 - **取关计数**：取关仍然点 X 自己的按钮，插件只记下今天取关了几个。
+- **关注限速提醒**：关注时被 X 限速，卡片上显示预计解除时间，30 分钟后在页面里提醒。30 分钟是经验值，X 没有公开具体规则；X 页面都关掉时不会提醒，下次打开再补。
 - **悬浮卡片**：拖到哪里就停在哪里，点 – 收起成一行小字。
 - **导出**：每天的数量、目标、没回关名单，导出成一个 JSON 文件。
 
@@ -28,7 +30,7 @@
 
 插件的设计原则是**只看，不动手**：
 
-- 不调用 X API，不额外发出任何请求。计数的方式是：你自己发帖时，X 网页会收到「发布成功」的返回，插件读这份返回来判断这一条是发帖、回复还是引用。
+- 不调用 X API，不额外发出任何请求。计数的方式是：你自己发帖时，X 网页会收到「发布成功」的返回，插件读这份返回来判断这一条是发帖、回复还是引用；补录手机上的内容，读的是你打开主页时 X 自己加载的时间线。
 - 没回关名单只读你滚动到的、页面上已经显示的内容，不自动翻页，不自动点击。
 - 取关只能你自己点，没有批量取关、一键取关。
 
@@ -36,7 +38,7 @@
 
 ## 已知限制
 
-- 只统计在这个浏览器里发出的内容，手机上发的不算；定时发送的帖子由 X 服务器到点发布，也不算。
+- 手机上和定时发送的内容，要在电脑上打开自己主页的「回复」标签才会补录，只补今天的，只补已经滚动加载出来的。
 - 转帖（不加评论）不计入；编辑帖子不重复计数；删掉的帖子不会扣回。
 - 回复自己的帖子（比如连续发帖串）记作发帖，不算回复。
 - 依赖 X 网页的内部结构。X 改版后如果计数或高亮失效，请[提个 Issue](https://github.com/hskelp9527-pixel/x-daily-rings/issues/new/choose)。
@@ -75,11 +77,11 @@ npm run test:browser     # 真实插件 + 模拟 X 页面：计数、高亮、�
 
 **How many posts, replies and quotes did you ship on X today? See it at a glance.**
 
-X Daily Rings is a Chrome / Edge extension (Chinese UI) that pins a draggable card on X with three daily rings: posts, replies and quotes, each with your own goal. You get a short cheer at 25 / 50 / 75 % and confetti when a ring closes. Counts reset at local midnight. On your own Following page it also highlights everyone who does not follow you back; unfollowing stays a manual click on X's own button, and the card counts today's unfollows.
+X Daily Rings is a Chrome / Edge extension (Chinese UI) that pins a draggable card on X with three daily rings: posts, replies and quotes, each with your own goal. You get a short cheer at 25 / 50 / 75 % and confetti when a ring closes. Counts reset at local midnight. Posts made on your phone are picked up when you open your profile's Replies tab (deduplicated by tweet id). If X rate-limits a follow, the card shows when the 30-minute cooldown ends and reminds you in-page. On your own Following page it also highlights everyone who does not follow you back; unfollowing stays a manual click on X's own button, and the card counts today's unfollows.
 
-It only reads, never acts: no X API calls and no extra requests. Counting reads the response X's own web app receives when *you* publish; the follow-back check reads only rows you have scrolled into view. No auto-scroll, no bulk unfollow. Data lives in `chrome.storage.local` and can be exported as JSON.
+It only reads, never acts: no X API calls and no extra requests. Counting reads the responses X's own web app receives when *you* publish or open your profile; the follow-back check reads only rows you have scrolled into view. No auto-scroll, no bulk unfollow. Data lives in `chrome.storage.local` and can be exported as JSON.
 
-Limits: posts from other devices and scheduled posts are not counted; reposts and edits are not counted; deletions are not subtracted; replies to your own posts (threads) count as posts. X markup changes may break counting or highlighting until an update ships.
+Limits: posts from other devices and scheduled posts only count once you open your profile's Replies tab; reposts and edits are not counted; deletions are not subtracted; replies to your own posts (threads) count as posts. X markup changes may break counting or highlighting until an update ships.
 
 Install: download **x-daily-rings.zip** from [Releases](https://github.com/hskelp9527-pixel/x-daily-rings/releases/latest), unzip, enable Developer mode in `chrome://extensions` or `edge://extensions`, choose **Load unpacked**, select the folder with `manifest.json`, and refresh X.
 
