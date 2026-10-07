@@ -42,7 +42,7 @@ try {
   const now = new Date().toUTCString();
   const tw = (id, legacy) => ({ tweet_results: { result: { __typename: 'Tweet', rest_id: id, core: { user_results: { result: { core: { screen_name: 'me' } } } },
     legacy: { full_text: 't', created_at: now, user_id_str: '5', ...legacy } } } });
-  await context.route('https://x.com/i/api/graphql/abc/UserTweetsAndReplies?**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: { entries: [
+  await context.route('https://x.com/i/api/graphql/abc/UserRepliesTimeline?**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: { entries: [
     tw('100', {}), tw('500', { in_reply_to_status_id_str: '9', in_reply_to_user_id_str: '6' }), tw('501', { is_quote_status: true })
   ] } }) }));
 
@@ -99,16 +99,16 @@ try {
   assert.equal(await goal(1), '1 / 2');
 
   // profile Replies tab: tweets from the phone get added, the one already counted (100) does not
-  await tab.evaluate(() => fetch('/i/api/graphql/abc/UserTweetsAndReplies?variables=%7B%7D'));
+  await tab.evaluate(() => fetch('/i/api/graphql/abc/UserRepliesTimeline?variables=%7B%7D'));
   await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelectorAll('.goal')[2].textContent === '2 / 4');
   assert.equal(await goal(0), '2 / 1', 'already-counted tweet is not double counted');
   assert.equal(await goal(1), '2 / 2');
   await panel.locator('.plus').first().waitFor();
   // visiting again finds nothing new and says so
-  await tab.evaluate(() => fetch('/i/api/graphql/abc/UserTweetsAndReplies?variables=%7B%7D'));
+  await tab.evaluate(() => fetch('/i/api/graphql/abc/UserRepliesTimeline?variables=%7B%7D'));
   await tab.waitForFunction(() => /主页核对完：今天 3 条都已记录/.test(document.querySelector('#x-daily-rings').shadowRoot.querySelector('.toast').textContent));
   assert.equal(await goal(2), '2 / 4');
-  assert.deepEqual(await tab.evaluate(() => ({ ...window.__xdrOps })), { CreateTweet: 5, UserTweetsAndReplies: 2 }, 'debug op tally');
+  assert.deepEqual(await tab.evaluate(() => ({ ...window.__xdrOps })), { CreateTweet: 5, UserRepliesTimeline: 2 }, 'debug op tally');
 
   // a follow refused by X's rate limit shows the cooldown banner
   await tab.evaluate(() => fetch('/i/api/1.1/friendships/create.json', { method: 'POST', body: 'user_id=9' }));

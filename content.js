@@ -209,7 +209,8 @@
         return;
       }
       if (!ok) return;
-      if (url.includes('/UserTweets')) {
+      // Profile timelines: UserRepliesTimeline / UserOriginalsTimeline (2026), UserTweets[AndReplies] (older).
+      if (/\/(UserTweets\w*|User\w*Timeline)$/.test(url.split('?')[0])) {
         const items = profileTweets(text, myHandle(), dayKey());
         console.info('[X Daily Rings]', url.split('?')[0].split('/').pop(), { me: myHandle(), tweets: (text.match(/"full_text"/g) ?? []).length, today: items.length });
         if (!items.length && profileToastPath !== location.pathname) toast('🔍 主页扫描：收到时间线，但没认出今天的内容'); // first page only
