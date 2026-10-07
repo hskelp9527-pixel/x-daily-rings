@@ -6,9 +6,14 @@
   const emit = (url, body, text, status) =>
     document.dispatchEvent(new CustomEvent('xdr:net', { detail: JSON.stringify({ url: String(url), body: typeof body === 'string' ? body : body instanceof URLSearchParams ? String(body) : '', text, status }) }));
 
+  // Debug aid: X GraphQL operation names this page has called, e.g. `__xdrOps` in the console.
+  const ops = window.__xdrOps = {};
+  const seen = url => { const op = String(url).split('?')[0].match(/\/graphql\/[^/]+\/(\w+)$/)?.[1]; if (op) ops[op] = (ops[op] || 0) + 1; };
+
   const nativeFetch = window.fetch;
   window.fetch = function (input, init) {
     const url = input instanceof Request ? input.url : String(input);
+    seen(url);
     // Read a Request's body before fetch consumes it.
     const body = !watched(url) ? null : init?.body != null ? Promise.resolve(init.body) : input instanceof Request ? input.clone().text() : Promise.resolve('');
     const promise = nativeFetch.apply(this, arguments);
@@ -21,6 +26,7 @@
   const { open, send } = XMLHttpRequest.prototype;
   XMLHttpRequest.prototype.open = function (method, url) {
     this.__xdrUrl = url;
+    seen(url);
     return open.apply(this, arguments);
   };
   XMLHttpRequest.prototype.send = function (body) {

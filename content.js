@@ -196,6 +196,7 @@
     }
   }
 
+  let profileToastPath = '';
   document.addEventListener('xdr:net', async e => {
     try {
       const { url, body, text, status } = JSON.parse(e.detail);
@@ -208,7 +209,13 @@
         return;
       }
       if (!ok) return;
-      if (url.includes('/UserTweets')) return await record(profileTweets(text, myHandle(), dayKey()), true);
+      if (url.includes('/UserTweets')) {
+        const items = profileTweets(text, myHandle(), dayKey());
+        console.info('[X Daily Rings]', url.split('?')[0].split('/').pop(), { me: myHandle(), tweets: (text.match(/"full_text"/g) ?? []).length, today: items.length });
+        if (!items.length && profileToastPath !== location.pathname) toast('🔍 主页扫描：收到时间线，但没认出今天的内容'); // first page only
+        profileToastPath = location.pathname;
+        return await record(items, true);
+      }
       if (url.includes('/friendships/destroy.json')) {
         const { days = {}, following = {} } = await store.get(['days', 'following']);
         const key = dayKey(), day = { ...emptyDay(), ...days[key] };

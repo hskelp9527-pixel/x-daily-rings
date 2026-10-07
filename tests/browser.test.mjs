@@ -108,6 +108,7 @@ try {
   await tab.evaluate(() => fetch('/i/api/graphql/abc/UserTweetsAndReplies?variables=%7B%7D'));
   await tab.waitForFunction(() => /主页核对完：今天 3 条都已记录/.test(document.querySelector('#x-daily-rings').shadowRoot.querySelector('.toast').textContent));
   assert.equal(await goal(2), '2 / 4');
+  assert.deepEqual(await tab.evaluate(() => ({ ...window.__xdrOps })), { CreateTweet: 5, UserTweetsAndReplies: 2 }, 'debug op tally');
 
   // a follow refused by X's rate limit shows the cooldown banner
   await tab.evaluate(() => fetch('/i/api/1.1/friendships/create.json', { method: 'POST', body: 'user_id=9' }));
