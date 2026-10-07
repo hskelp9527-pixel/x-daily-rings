@@ -1,7 +1,7 @@
 // Runs in the page (MAIN world) at document_start. Sends no requests of its own:
 // it only watches X's own publish / follow / unfollow / profile-timeline responses and forwards them to content.js.
 (() => {
-  const watched = url => /\/(CreateTweet|CreateNoteTweet|UserTweetsAndReplies)$|\/friendships\/(create|destroy)\.json$/.test(String(url).split('?')[0]);
+  const watched = url => /\/(CreateTweet|CreateNoteTweet|UserTweets|UserTweetsAndReplies)$|\/friendships\/(create|destroy)\.json$/.test(String(url).split('?')[0]);
   // Failed responses are forwarded too (with status): a refused follow is how rate limits show up.
   const emit = (url, body, text, status) =>
     document.dispatchEvent(new CustomEvent('xdr:net', { detail: JSON.stringify({ url: String(url), body: typeof body === 'string' ? body : body instanceof URLSearchParams ? String(body) : '', text, status }) }));

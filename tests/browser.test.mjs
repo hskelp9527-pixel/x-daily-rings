@@ -103,6 +103,11 @@ try {
   await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelectorAll('.goal')[2].textContent === '2 / 4');
   assert.equal(await goal(0), '2 / 1', 'already-counted tweet is not double counted');
   assert.equal(await goal(1), '2 / 2');
+  await panel.locator('.plus').first().waitFor();
+  // visiting again finds nothing new and says so
+  await tab.evaluate(() => fetch('/i/api/graphql/abc/UserTweetsAndReplies?variables=%7B%7D'));
+  await tab.waitForFunction(() => /主页核对完：今天 3 条都已记录/.test(document.querySelector('#x-daily-rings').shadowRoot.querySelector('.toast').textContent));
+  assert.equal(await goal(2), '2 / 4');
 
   // a follow refused by X's rate limit shows the cooldown banner
   await tab.evaluate(() => fetch('/i/api/1.1/friendships/create.json', { method: 'POST', body: 'user_id=9' }));

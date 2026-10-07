@@ -67,6 +67,8 @@
       background:rgba(28,28,30,.72);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);
       border:1px solid rgba(255,255,255,.14);box-shadow:0 10px 30px rgba(0,0,0,.25);opacity:0;transform:translateY(8px) scale(.98);transition:.3s cubic-bezier(.2,.9,.3,1);pointer-events:none}
     .toast.show{opacity:1;transform:none}
+    .plus{position:absolute;z-index:1;font:700 16px/1 ui-rounded,"SF Pro Rounded",-apple-system,"Segoe UI",sans-serif;pointer-events:none;text-shadow:0 1px 6px rgba(0,0,0,.18);animation:rise 1.5s cubic-bezier(.2,.9,.3,1) forwards}
+    @keyframes rise{0%{opacity:0;transform:translate(-50%,8px) scale(.5)}18%{opacity:1;transform:translate(-50%,-6px) scale(1.2)}70%{opacity:1}100%{opacity:0;transform:translate(-50%,-22px) scale(1)}}
     .confetti{position:fixed;top:-12px;width:8px;height:12px;border-radius:2px;animation:fall linear forwards;pointer-events:none}
     @keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
   </style>
@@ -153,6 +155,19 @@
     }
   }
 
+  // "+N" rising out of a ring, like the toast says.
+  function plus(kind, n) {
+    const dial = root.querySelectorAll('.dial')[KINDS.indexOf(kind)];
+    if (!dial || card.classList.contains('collapsed')) return;
+    const d = dial.getBoundingClientRect(), h = host.getBoundingClientRect();
+    const el = document.createElement('span');
+    el.className = 'plus';
+    el.textContent = `+${n}`;
+    el.style.cssText = `left:${d.left - h.left + d.width / 2 + 24}px;top:${d.top - h.top + 8}px;color:${COLORS[kind][1]}`;
+    root.append(el);
+    setTimeout(() => el.remove(), 1600);
+  }
+
   // ---------- events from hook.js ----------
   // Counts new tweets; any id already in ownIds was counted before (desktop or an earlier profile visit).
   async function record(items, fromProfile) {
@@ -169,8 +184,10 @@
       if (tier === 100) day.full = true;
     }
     const added = KINDS.filter(k => day[k] > before[k]);
-    if (!added.length) return;
+    // Profile visit with nothing new still says so, otherwise it looks like the scan never ran.
+    if (!added.length) return fromProfile && items.length && toast(`✅ 主页核对完：今天 ${items.length} 条都已记录`);
     await store.set({ days: { ...days, [key]: day }, ownIds: [...fresh, ...ownIds].slice(0, 500) });
+    added.forEach((k, i) => setTimeout(() => plus(k, day[k] - before[k]), 120 + i * 150)); // after the re-render
     if (cheer) {
       toast(`${ICONS[cheer.kind]} ${LABELS[cheer.kind]} ${cheer.tier}%：${cheer.line}`);
       if (cheer.tier === 100) confetti();
@@ -191,7 +208,7 @@
         return;
       }
       if (!ok) return;
-      if (url.includes('/UserTweetsAndReplies')) return await record(profileTweets(text, myHandle(), dayKey()), true);
+      if (url.includes('/UserTweets')) return await record(profileTweets(text, myHandle(), dayKey()), true);
       if (url.includes('/friendships/destroy.json')) {
         const { days = {}, following = {} } = await store.get(['days', 'following']);
         const key = dayKey(), day = { ...emptyDay(), ...days[key] };

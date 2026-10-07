@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "X Daily Rings · 每日输出环",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "在 X 页面挂一张悬浮卡片：发帖、回复、引用三个每日圆环，外加关注列表里没回关的人高亮。",
   "permissions": ["storage"],
   "content_scripts": [
