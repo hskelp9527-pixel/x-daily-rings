@@ -6,6 +6,7 @@
   const ICONS = { post: '📝', reply: '↩️', quote: '🔁' };
   const DEFAULT_GOALS = { post: 3, reply: 20, quote: 5 };
   const R = 27, C = 2 * Math.PI * R;
+  const hhmm = d => d.toTimeString().slice(0, 5);
   const LIMIT_MS = 30 * 60 * 1000; // ponytail: X doesn't publish its follow cooldown; 30 min is a rule of thumb
   const store = chrome.storage.local;
   const S = { goals: DEFAULT_GOALS, days: {}, ownIds: [], following: {}, panel: null, followLimitUntil: 0 };
@@ -67,6 +68,7 @@
       background:rgba(28,28,30,.72);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);
       border:1px solid rgba(255,255,255,.14);box-shadow:0 10px 30px rgba(0,0,0,.25);opacity:0;transform:translateY(8px) scale(.98);transition:.3s cubic-bezier(.2,.9,.3,1);pointer-events:none}
     .toast.show{opacity:1;transform:none}
+    .toast.below{bottom:auto;top:calc(100% + 10px)}
     .plus{position:absolute;z-index:1;font:700 16px/1 ui-rounded,"SF Pro Rounded",-apple-system,"Segoe UI",sans-serif;pointer-events:none;text-shadow:0 1px 6px rgba(0,0,0,.18);animation:rise 1.5s cubic-bezier(.2,.9,.3,1) forwards}
     @keyframes rise{0%{opacity:0;transform:translate(-50%,8px) scale(.5)}18%{opacity:1;transform:translate(-50%,-6px) scale(1.2)}70%{opacity:1}100%{opacity:0;transform:translate(-50%,-22px) scale(1)}}
     .confetti{position:fixed;top:-12px;width:8px;height:12px;border-radius:2px;animation:fall linear forwards;pointer-events:none}
@@ -111,14 +113,15 @@
     $('.unf b').textContent = day.unfollow;
     card.classList.toggle('collapsed', !!S.panel?.collapsed);
     $('.fold').textContent = S.panel?.collapsed ? '+' : '–';
-    const until = S.followLimitUntil;
-    if (until && Date.now() >= until) {
-      S.followLimitUntil = 0;
-      store.set({ followLimitUntil: 0 });
-      toast('✅ 关注限制应该解除了，可以继续关注。', 15000);
+    // X's real cooldown is often longer than 30 min, so the banner stays until a follow goes through.
+    const until = S.followLimitUntil, now = Date.now();
+    if (until && now > until + 4 * LIMIT_MS) store.set({ followLimitUntil: 0 }); // stale, nobody retried
+    if (until && now >= until && notifiedUntil !== until) {
+      notifiedUntil = until;
+      toast('✅ 已过 30 分钟，可以再试试关注了。', 15000);
     }
-    $('.limit').hidden = !S.followLimitUntil;
-    $('.limit').textContent = `⏳ 关注被限速，约 ${new Date(until).toTimeString().slice(0, 5)} 解除`;
+    $('.limit').hidden = !until;
+    $('.limit').textContent = now < until ? `⏳ 关注被限速，约 ${hhmm(new Date(until))} 解除` : '⏳ 限速应已解除，关注一下试试；成功后这条会消失';
     theme();
   }
 
@@ -135,10 +138,11 @@
     host.style.top = Math.max(0, Math.min(y, innerHeight - 40)) + 'px';
   }
 
-  let toastTimer;
+  let toastTimer, notifiedUntil = 0;
   function toast(text, ms = 3000) {
     const t = $('.toast');
     t.textContent = text;
+    t.classList.toggle('below', host.getBoundingClientRect().top < t.offsetHeight + 20); // card dragged to the top
     t.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => t.classList.remove('show'), ms);
@@ -169,14 +173,18 @@
   }
 
   // ---------- events from hook.js ----------
+  // Read-modify-write on storage, serialised across timeline pages and X tabs (same origin).
+  const locked = fn => navigator.locks.request('xdr-store', fn);
+
   // Counts new tweets; any id already in ownIds was counted before (desktop or an earlier profile visit).
-  async function record(items, fromProfile) {
+  const record = (items, fromProfile) => locked(async () => {
     const { days = {}, ownIds = [] } = await store.get(['days', 'ownIds']);
-    const key = dayKey(), before = { ...emptyDay(), ...days[key] }, day = { ...before }, known = new Set(ownIds), fresh = [];
+    const key = dayKey(), before = { ...emptyDay(), ...days[key] }, day = { ...before, log: [...before.log] }, known = new Set(ownIds), fresh = [];
     let cheer = null;
-    for (const { kind, id } of items) {
+    for (const { kind, id, at = new Date() } of items) {
       if (id && known.has(String(id))) continue;
       if (id) { known.add(String(id)); fresh.unshift(String(id)); }
+      day.log.push([id ? String(id) : null, kind, hhmm(at)]);
       const prev = day[kind]++;
       const tier = crossedTier(prev, day[kind], S.goals[kind]);
       // The day's first closed ring always gets the signature line.
@@ -186,7 +194,7 @@
     const added = KINDS.filter(k => day[k] > before[k]);
     // Profile visit with nothing new still says so, otherwise it looks like the scan never ran.
     if (!added.length) return fromProfile && items.length && toast(`✅ 主页核对完：今天 ${items.length} 条都已记录`);
-    await store.set({ days: { ...days, [key]: day }, ownIds: [...fresh, ...ownIds].slice(0, 500) });
+    await store.set({ days: { ...days, [key]: day }, ownIds: [...fresh, ...ownIds].slice(0, 2000) });
     added.forEach((k, i) => setTimeout(() => plus(k, day[k] - before[k]), 120 + i * 150)); // after the re-render
     if (cheer) {
       toast(`${ICONS[cheer.kind]} ${LABELS[cheer.kind]} ${cheer.tier}%：${cheer.line}`);
@@ -194,7 +202,7 @@
     } else if (fromProfile) {
       toast(`📥 从主页补录：${added.map(k => `${LABELS[k]} +${day[k] - before[k]}`).join('，')}`);
     }
-  }
+  });
 
   let profileToastPath = '';
   document.addEventListener('xdr:net', async e => {
@@ -213,24 +221,25 @@
       if (/\/(UserTweets\w*|User\w*Timeline)$/.test(url.split('?')[0])) {
         const items = profileTweets(text, myHandle(), dayKey());
         console.info('[X Daily Rings]', url.split('?')[0].split('/').pop(), { me: myHandle(), tweets: (text.match(/"full_text"/g) ?? []).length, today: items.length });
-        if (!items.length && profileToastPath !== location.pathname) toast('🔍 主页扫描：收到时间线，但没认出今天的内容'); // first page only
+        const own = location.pathname.toLowerCase().startsWith(`/${myHandle()?.toLowerCase()}`);
+        if (own && !items.length && profileToastPath !== location.pathname) toast('🔍 主页扫描：收到时间线，但没认出今天的内容'); // first page only
         profileToastPath = location.pathname;
         return await record(items, true);
       }
-      if (url.includes('/friendships/destroy.json')) {
+      if (url.includes('/friendships/destroy.json')) return await locked(async () => {
         const { days = {}, following = {} } = await store.get(['days', 'following']);
         const key = dayKey(), day = { ...emptyDay(), ...days[key] };
         day.unfollow++;
         const uid = unfollowUid(body);
         for (const u of Object.values(following)) if (u.uid === uid) u.gone = true;
         await store.set({ days: { ...days, [key]: day }, following });
-        return;
-      }
+      });
       const { ownIds = [] } = await store.get('ownIds');
       const r = classifyCreate(body, text, new Set(ownIds));
       if (r) await record([r], false);
     } catch { /* extension reloaded or unexpected payload: never break X */ }
   });
+  document.dispatchEvent(new Event('xdr:ready'));
 
   // ---------- "who doesn't follow back" on your own Following page ----------
   const myHandle = () => document.querySelector('a[data-testid="AppTabBar_Profile_Link"]')?.getAttribute('href')?.slice(1);

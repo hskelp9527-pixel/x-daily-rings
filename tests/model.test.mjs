@@ -78,6 +78,8 @@ test('profile timeline: own tweets from today, classified like CreateTweet, retw
   ] }] } } } } } });
   const got = Object.fromEntries(profileTweets(json, 'me', '2026-10-07').map(t => [t.id, t.kind]));
   assert.deepEqual({ ...got }, { 1: 'post', 2: 'reply', 3: 'post', 4: 'quote', 6: 'post' });
+  const edited = JSON.stringify({ result: { ...tw('20', 'Me', {}), edit_control: { initial_tweet_id: '19', edit_control_initial: { edit_tweet_ids: ['19', '20'] } } } });
+  assert.deepEqual([...profileTweets(edited, 'me', '2026-10-07').map(t => t.id)], ['19'], 'edited tweet keyed by its original id');
   assert.equal(profileTweets(json, undefined, '2026-10-07').length, 0);
   assert.equal(profileTweets('nope', 'me', '2026-10-07').length, 0);
 });

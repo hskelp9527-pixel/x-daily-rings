@@ -3,19 +3,31 @@
 (() => {
   const watched = url => /\/(CreateTweet|CreateNoteTweet|UserTweets\w*|User\w*Timeline)$|\/friendships\/(create|destroy)\.json$/.test(String(url).split('?')[0]);
   // Failed responses are forwarded too (with status): a refused follow is how rate limits show up.
-  const emit = (url, body, text, status) =>
-    document.dispatchEvent(new CustomEvent('xdr:net', { detail: JSON.stringify({ url: String(url), body: typeof body === 'string' ? body : body instanceof URLSearchParams ? String(body) : '', text, status }) }));
+  // Held until content.js (document_idle) is listening, so a timeline loaded right at page start isn't lost.
+  let ready = false;
+  const queue = [];
+  const emit = (url, body, text, status) => {
+    const fire = () => document.dispatchEvent(new CustomEvent('xdr:net', { detail: JSON.stringify({ url: String(url), body: typeof body === 'string' ? body : body instanceof URLSearchParams ? String(body) : '', text, status }) }));
+    if (ready) fire(); else if (queue.length < 50) queue.push(fire);
+  };
+  document.addEventListener('xdr:ready', () => { ready = true; queue.splice(0).forEach(fire => fire()); }, { once: true });
 
-  // Debug aid: X GraphQL operation names this page has called, e.g. `__xdrOps` in the console.
+  // Debug aid: X GraphQL / REST operations this page has called, e.g. `__xdrOps` in the console.
   const ops = window.__xdrOps = {};
-  const seen = url => { const op = String(url).split('?')[0].match(/\/graphql\/[^/]+\/(\w+)$/)?.[1]; if (op) ops[op] = (ops[op] || 0) + 1; };
+  const seen = url => {
+    const m = String(url).split('?')[0].match(/\/graphql\/[^/]+\/(\w+)$|\/1\.1\/([\w/]+)\.json$/);
+    if (m) ops[m[1] ?? m[2]] = (ops[m[1] ?? m[2]] || 0) + 1;
+  };
 
   const nativeFetch = window.fetch;
   window.fetch = function (input, init) {
     const url = input instanceof Request ? input.url : String(input);
     seen(url);
-    // Read a Request's body before fetch consumes it.
-    const body = !watched(url) ? null : init?.body != null ? Promise.resolve(init.body) : input instanceof Request ? input.clone().text() : Promise.resolve('');
+    // Read a Request's body before fetch consumes it. Never let this throw into X's own request.
+    let body = null;
+    try {
+      if (watched(url)) body = init?.body != null ? Promise.resolve(init.body) : input instanceof Request ? input.clone().text() : Promise.resolve('');
+    } catch { body = null; }
     const promise = nativeFetch.apply(this, arguments);
     if (body) {
       promise.then(res => Promise.all([body, res.clone().text()]).then(([b, t]) => emit(url, b, t, res.status))).catch(() => {});

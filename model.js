@@ -71,12 +71,14 @@ globalThis.XDR = (() => {
       if (o.rest_id && typeof l?.full_text === 'string' && l.created_at && !l.retweeted_status_result
         && String(u?.core?.screen_name ?? u?.legacy?.screen_name).toLowerCase() === me && dayKey(new Date(l.created_at)) === key) {
         const kind = l.in_reply_to_status_id_str ? (l.in_reply_to_user_id_str === l.user_id_str ? 'post' : 'reply') : l.is_quote_status ? 'quote' : 'post';
-        out.set(String(o.rest_id), kind);
+        // An edited tweet gets a new rest_id; key it by the original so it counts once.
+        const id = o.edit_control?.initial_tweet_id ?? o.edit_control?.edit_tweet_ids?.[0] ?? o.rest_id;
+        out.set(String(id), { kind, at: new Date(l.created_at) });
       }
       for (const v of Object.values(o)) walk(v);
     };
     if (me) walk(parse(text));
-    return [...out].map(([id, kind]) => ({ kind, id }));
+    return [...out].map(([id, t]) => ({ id, ...t }));
   }
 
   // A refused friendships/create: 429, or error 88 (rate limit) / 161 (can't follow more right now).
@@ -98,7 +100,8 @@ globalThis.XDR = (() => {
     return list[Math.floor(rand() * list.length)];
   };
 
-  const emptyDay = () => ({ post: 0, reply: 0, quote: 0, unfollow: 0, full: false });
+  // log: [id, kind, 'HH:MM'] per counted tweet, for checking against X Analytics.
+  const emptyDay = () => ({ post: 0, reply: 0, quote: 0, unfollow: 0, full: false, log: [] });
 
   return { KINDS, LABELS, TIERS, MESSAGES, FIRST_FULL, dayKey, classifyCreate, profileTweets, followLimited, unfollowUid, crossedTier, message, emptyDay };
 })();
