@@ -138,9 +138,11 @@
     host.style.top = Math.max(0, Math.min(y, innerHeight - 40)) + 'px';
   }
 
-  let toastTimer, notifiedUntil = 0;
-  function toast(text, ms = 3000) {
+  let toastTimer, cheerUntil = 0, notifiedUntil = 0;
+  // minor = profile-scan status notes; they never cover a cheer still on screen.
+  function toast(text, ms = 3000, minor = false) {
     const t = $('.toast');
+    if (minor && Date.now() < cheerUntil) return;
     t.textContent = text;
     t.classList.toggle('below', host.getBoundingClientRect().top < t.offsetHeight + 20); // card dragged to the top
     t.classList.add('show');
@@ -193,11 +195,12 @@
     }
     const added = KINDS.filter(k => day[k] > before[k]);
     // Profile visit with nothing new still says so, otherwise it looks like the scan never ran.
-    if (!added.length) return fromProfile && items.length && toast(`✅ 主页核对完：今天 ${items.length} 条都已记录`);
+    if (!added.length) return fromProfile && items.length && toast(`✅ 主页核对完：今天 ${items.length} 条都已记录`, 3000, true);
     await store.set({ days: { ...days, [key]: day }, ownIds: [...fresh, ...ownIds].slice(0, 2000) });
     added.forEach((k, i) => setTimeout(() => plus(k, day[k] - before[k]), 120 + i * 150)); // after the re-render
     if (cheer) {
-      toast(`${ICONS[cheer.kind]} ${LABELS[cheer.kind]} ${cheer.tier}%：${cheer.line}`);
+      toast(`${ICONS[cheer.kind]} ${LABELS[cheer.kind]} ${cheer.tier}%：${cheer.line}`, 5000);
+      cheerUntil = Date.now() + 5000;
       if (cheer.tier === 100) confetti();
     } else if (fromProfile) {
       toast(`📥 从主页补录：${added.map(k => `${LABELS[k]} +${day[k] - before[k]}`).join('，')}`);
@@ -222,7 +225,7 @@
         const items = profileTweets(text, myHandle(), dayKey());
         console.info('[X Daily Rings]', url.split('?')[0].split('/').pop(), { me: myHandle(), tweets: (text.match(/"full_text"/g) ?? []).length, today: items.length });
         const own = location.pathname.toLowerCase().startsWith(`/${myHandle()?.toLowerCase()}`);
-        if (own && !items.length && profileToastPath !== location.pathname) toast('🔍 主页扫描：收到时间线，但没认出今天的内容'); // first page only
+        if (own && !items.length && profileToastPath !== location.pathname) toast('🔍 主页扫描：收到时间线，但没认出今天的内容', 3000, true); // first page only
         profileToastPath = location.pathname;
         return await record(items, true);
       }

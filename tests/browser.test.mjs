@@ -104,11 +104,16 @@ try {
   assert.equal(await goal(0), '2 / 1', 'already-counted tweet is not double counted');
   assert.equal(await goal(1), '2 / 2');
   await panel.locator('.plus').first().waitFor();
-  // visiting again finds nothing new and says so
+  // the scan closed the reply ring; an immediate re-scan must not cover that cheer
+  await tab.evaluate(() => fetch('/i/api/graphql/abc/UserRepliesTimeline?variables=%7B%7D'));
+  await tab.waitForTimeout(400);
+  assert.match(await panel.locator('.toast').textContent(), /\d+%：/, 'scan note does not cover a cheer');
+  // once the cheer is gone, visiting again finds nothing new and says so
+  await tab.waitForTimeout(5000);
   await tab.evaluate(() => fetch('/i/api/graphql/abc/UserRepliesTimeline?variables=%7B%7D'));
   await tab.waitForFunction(() => /主页核对完：今天 3 条都已记录/.test(document.querySelector('#x-daily-rings').shadowRoot.querySelector('.toast').textContent));
   assert.equal(await goal(2), '2 / 4');
-  assert.deepEqual(await tab.evaluate(() => ({ ...window.__xdrOps })), { CreateTweet: 5, UserRepliesTimeline: 2 }, 'debug op tally');
+  assert.deepEqual(await tab.evaluate(() => ({ ...window.__xdrOps })), { CreateTweet: 5, UserRepliesTimeline: 3 }, 'debug op tally');
 
   // a follow refused by X's rate limit shows the cooldown banner
   await tab.evaluate(() => fetch('/i/api/1.1/friendships/create.json', { method: 'POST', body: 'user_id=9' }));
