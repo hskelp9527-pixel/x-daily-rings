@@ -9,17 +9,15 @@
 [![Checks](https://github.com/hskelp9527-pixel/x-daily-rings/actions/workflows/checks.yml/badge.svg)](https://github.com/hskelp9527-pixel/x-daily-rings/actions/workflows/checks.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-<img src="docs/images/panel.png" width="260" alt="三个每日圆环（浅色）"> <img src="docs/images/panel-dark.png" width="260" alt="三个每日圆环（深色）">
+<img src="docs/images/panel.png" width="300" alt="悬浮卡片：三个每日圆环和关注限速提醒"> <img src="docs/images/settings.png" width="330" alt="点 ⚙ 设定每日目标">
 
-![正在关注页面里没回关的人被高亮](docs/images/following.png)
-
-以上截图来自模拟页面与测试数据。
+<img src="docs/images/following.png" width="600" alt="正在关注页面里没回关的人被高亮">
 
 ## 能做什么
 
 - **三个圆环**：发帖、回复、引用，圆环中间是今天的数量。点 ⚙ 设目标，过了电脑上的 0 点自动清零。
 - **补录手机上发的**：在电脑上打开自己主页的「回复」标签，往下滚到出现昨天的帖子，今天在手机上发的帖子、回复、引用会补进圆环。按帖子 ID 去重，不会重复计数。
-- **鼓励**：每个环到 25% / 50% / 75% 冒一句话，3 秒后消失；到 100% 放彩带。
+- **鼓励**：每个环到 25% / 50% / 75% 冒一句话，停留 5 秒；到 100% 放彩带。目标定得很高时（比如回复 500），一天只会冒几次。
 - **没回关高亮**：打开自己的「正在关注」页面往下滚，没有「关注了你」标签的人整行标红。卡片底部分开显示「已扫描」「没回关」「今日取关」，都只算今天扫描到的人，每天清零；取关后前两个数字不会减少。
 - **取关计数**：取关仍然点 X 自己的按钮，插件只记下今天取关了几个。
 - **关注限速提醒**：关注时被 X 限速，卡片上显示预计解除时间，30 分钟后在页面里提醒再试；横幅留到下一次关注成功才消失。30 分钟是经验值，X 没有公开具体规则；X 页面都关掉时不会提醒，下次打开再补。
@@ -48,8 +46,16 @@
 目前通过开发者模式安装，尚未上架 Chrome Web Store 或 Edge Add-ons。Windows 和 macOS 上的 Chrome、Edge 都能用（Safari 不支持）。
 
 1. 在 [Releases](https://github.com/hskelp9527-pixel/x-daily-rings/releases/latest) 下载 **x-daily-rings.zip**，解压到一个准备长期保留的文件夹。
-2. Chrome 地址栏打开 `chrome://extensions`，Edge 打开 `edge://extensions`，开启「开发者模式」。
-3. 点击「加载已解压的扩展程序」，选择包含 `manifest.json` 的文件夹，然后刷新已打开的 X 页面。
+
+   <img src="docs/images/install-download.png" width="600" alt="Releases 页面下载 x-daily-rings.zip">
+2. Chrome 地址栏打开 `chrome://extensions`，Edge 打开 `edge://extensions`，开启右上角「开发者模式」。
+3. 点击左上角「加载未打包的扩展程序」（Edge 叫「加载解压缩的扩展」），选择包含 `manifest.json` 的文件夹，然后刷新已打开的 X 页面。
+
+   <img src="docs/images/install-load.png" width="700" alt="开启开发者模式，加载未打包的扩展程序">
+
+   看到这张卡片就装好了：
+
+   <img src="docs/images/install-done.png" width="320" alt="安装成功的扩展卡片">
 
 更新时先点卡片上的「导出」备份，再把新版本解压到同一文件夹，在扩展页面点「重新加载」并刷新 X。尽量不要卸载重装，卸载会清除本机数据。
 
