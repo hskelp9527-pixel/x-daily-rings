@@ -109,7 +109,7 @@ try {
   await tab.waitForTimeout(400);
   assert.match(await panel.locator('.toast').textContent(), /\d+%：/, 'scan note does not cover a cheer');
   // once the cheer is gone, visiting again finds nothing new and says so
-  await tab.waitForTimeout(5000);
+  await tab.waitForTimeout(15000);
   await tab.evaluate(() => fetch('/i/api/graphql/abc/UserRepliesTimeline?variables=%7B%7D'));
   await tab.waitForFunction(() => /主页核对完：今天 3 条都已记录/.test(document.querySelector('#x-daily-rings').shadowRoot.querySelector('.toast').textContent));
   assert.equal(await goal(2), '2 / 4');

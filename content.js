@@ -199,8 +199,8 @@
     await store.set({ days: { ...days, [key]: day }, ownIds: [...fresh, ...ownIds].slice(0, 2000) });
     added.forEach((k, i) => setTimeout(() => plus(k, day[k] - before[k]), 120 + i * 150)); // after the re-render
     if (cheer) {
-      toast(`${ICONS[cheer.kind]} ${LABELS[cheer.kind]} ${cheer.tier}%：${cheer.line}`, 5000);
-      cheerUntil = Date.now() + 5000;
+      toast(`${ICONS[cheer.kind]} ${LABELS[cheer.kind]} ${cheer.tier}%：${cheer.line}`, 15000);
+      cheerUntil = Date.now() + 15000;
       if (cheer.tier === 100) confetti();
     } else if (fromProfile) {
       toast(`📥 从主页补录：${added.map(k => `${LABELS[k]} +${day[k] - before[k]}`).join('，')}`);
