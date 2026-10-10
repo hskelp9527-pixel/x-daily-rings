@@ -65,9 +65,9 @@ try {
   await panel.locator('input[name=post]').fill('1');
   await panel.locator('input[name=reply]').fill('2');
   await panel.locator('input[name=quote]').fill('4');
-  await panel.locator('form button').click();
+  await panel.locator('form:not(.cool) button').click();
   await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelector('.goal').textContent === '0 / 1');
-  assert.equal(await panel.locator('form').isVisible(), false, 'settings close after saving');
+  assert.equal(await panel.locator('form:not(.cool)').isVisible(), false, 'settings close after saving');
 
   // publish via X's own requests: fetch post, XHR reply, fetch quote, thread continuation, failed post
   const createFetch = variables => tab.evaluate(async v => {
@@ -115,9 +115,14 @@ try {
   assert.equal(await goal(2), '2 / 4');
   assert.deepEqual(await tab.evaluate(() => ({ ...window.__xdrOps })), { CreateTweet: 5, UserRepliesTimeline: 3 }, 'debug op tally');
 
+  // the cooldown is set with the ⏱ button; a refused follow then uses it
+  await panel.locator('.cool-btn').click();
+  await panel.locator('form.cool input[name=min]').fill('5');
+  await panel.locator('form.cool button').click();
   // a follow refused by X's rate limit shows the cooldown banner
   await tab.evaluate(() => fetch('/i/api/1.1/friendships/create.json', { method: 'POST', body: 'user_id=9' }));
   await panel.locator('.limit:not([hidden])').waitFor();
+  assert.match(await panel.locator('.toast').textContent(), /5 分钟后提醒你/, 'refusal uses the chosen cooldown');
   assert.match(await panel.locator('.limit').textContent(), /关注被限速，约 \d\d:\d\d 解除/);
 
   // unfollow bob through X's own request; X then flips his button to "-follow"

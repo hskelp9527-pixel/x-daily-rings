@@ -7,9 +7,11 @@
   const DEFAULT_GOALS = { post: 3, reply: 20, quote: 5 };
   const R = 27, C = 2 * Math.PI * R;
   const hhmm = d => d.toTimeString().slice(0, 5);
-  const LIMIT_MS = 30 * 60 * 1000; // ponytail: X doesn't publish its follow cooldown; 30 min is a rule of thumb
+  // ponytail: X doesn't publish its follow cooldown; 30 min is a rule of thumb, so it's user-set (⏱ in the header).
+  const DEFAULT_COOLDOWN_MIN = 30;
   const store = chrome.storage.local;
-  const S = { goals: DEFAULT_GOALS, days: {}, ownIds: [], following: {}, panel: null, followLimitUntil: 0 };
+  const S = { goals: DEFAULT_GOALS, days: {}, ownIds: [], following: {}, panel: null, followLimitUntil: 0, followCooldownMin: DEFAULT_COOLDOWN_MIN };
+  const cooldownMs = () => S.followCooldownMin * 60 * 1000;
   const today = () => ({ ...emptyDay(), ...S.days[dayKey()] });
 
   // ---------- page-side styles for the highlighter ----------
@@ -53,6 +55,7 @@
     form input:focus{box-shadow:0 0 0 2px rgba(10,132,255,.5)}
     form button{grid-column:1/-1;padding:7px;border-radius:12px;background:#0a84ff;color:#fff;font-weight:600}
     form button:hover{background:#0077ed}
+    form.cool{grid-template-columns:1fr}
     .limit{margin:0 10px 8px;padding:7px 12px;border-radius:14px;background:rgba(255,159,10,.16);font-size:12px;font-weight:600}
     .limit[hidden]{display:none}
     .stats{display:grid;grid-template-columns:repeat(3,1fr) auto;align-items:center;gap:4px;margin:0 10px 10px;padding:8px 6px 8px 12px;border-radius:16px;background:var(--well)}
@@ -76,9 +79,10 @@
   </style>
   <div class="toast"></div>
   <div class="card">
-    <header><b>今日输出</b><span class="date"></span><button class="icon gear" title="设置目标">⚙︎</button><button class="icon fold" title="收起 / 展开">–</button></header>
+    <header><b>今日输出</b><span class="date"></span><button class="icon cool-btn" title="关注限速等待时长">⏱︎</button><button class="icon gear" title="设置目标">⚙︎</button><button class="icon fold" title="收起 / 展开">–</button></header>
     <div class="rings"></div>
     <form hidden>${KINDS.map(k => `<label>${LABELS[k]}目标<input name="${k}" type="number" min="1" step="1"></label>`).join('')}<button>保存目标</button></form>
+    <form class="cool" hidden><label>关注限速等待（分钟）<input name="min" type="number" min="1" max="1440" step="1"></label><button>保存</button></form>
     <div class="mini"></div>
     <div class="limit" hidden></div>
     <div class="stats">
@@ -89,7 +93,7 @@
     </div>
   </div>`;
   const $ = s => root.querySelector(s);
-  const card = $('.card'), form = $('form');
+  const card = $('.card'), form = $('form'), coolForm = $('form.cool');
 
   function render() {
     const day = today();
@@ -113,12 +117,12 @@
     $('.unf b').textContent = day.unfollow;
     card.classList.toggle('collapsed', !!S.panel?.collapsed);
     $('.fold').textContent = S.panel?.collapsed ? '+' : '–';
-    // X's real cooldown is often longer than 30 min, so the banner stays until a follow goes through.
+    // X's real cooldown is often longer than the wait set here, so the banner stays until a follow goes through.
     const until = S.followLimitUntil, now = Date.now();
-    if (until && now > until + 4 * LIMIT_MS) store.set({ followLimitUntil: 0 }); // stale, nobody retried
+    if (until && now > until + 4 * cooldownMs()) store.set({ followLimitUntil: 0 }); // stale, nobody retried
     if (until && now >= until && notifiedUntil !== until) {
       notifiedUntil = until;
-      toast('✅ 已过 30 分钟，可以再试试关注了。', 15000);
+      toast(`✅ 已过 ${S.followCooldownMin} 分钟，可以再试试关注了。`, 15000);
     }
     $('.limit').hidden = !until;
     $('.limit').textContent = now < until ? `⏳ 关注被限速，约 ${hhmm(new Date(until))} 解除` : '⏳ 限速应已解除，关注一下试试；成功后这条会消失';
@@ -214,8 +218,8 @@
       const ok = status >= 200 && status < 300;
       if (url.includes('/friendships/create.json')) {
         if (followLimited(status, text)) {
-          await store.set({ followLimitUntil: Date.now() + LIMIT_MS });
-          toast('⏳ 关注被 X 限速了，30 分钟后提醒你。', 6000);
+          await store.set({ followLimitUntil: Date.now() + cooldownMs() });
+          toast(`⏳ 关注被 X 限速了，${S.followCooldownMin} 分钟后提醒你。`, 6000);
         } else if (ok && S.followLimitUntil) await store.set({ followLimitUntil: 0 }); // follows work again
         return;
       }
@@ -278,6 +282,16 @@
     const goals = Object.fromEntries(KINDS.map(k => [k, Math.max(1, Math.round(+form.elements[k].value) || S.goals[k])]));
     form.hidden = true;
     store.set({ goals });
+  };
+  $('.cool-btn').onclick = () => {
+    coolForm.hidden = !coolForm.hidden;
+    coolForm.elements.min.value = S.followCooldownMin;
+  };
+  coolForm.onsubmit = e => {
+    e.preventDefault();
+    const min = Math.min(1440, Math.max(1, Math.round(+coolForm.elements.min.value) || S.followCooldownMin));
+    coolForm.hidden = true;
+    store.set({ followCooldownMin: min });
   };
   $('.export').onclick = () => {
     const people = Object.entries(S.following);
