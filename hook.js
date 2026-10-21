@@ -6,8 +6,11 @@
   // Held until content.js (document_idle) is listening, so a timeline loaded right at page start isn't lost.
   let ready = false;
   const queue = [];
-  const emit = (url, body, text, status) => {
-    const fire = () => document.dispatchEvent(new CustomEvent('xdr:net', { detail: JSON.stringify({ url: String(url), body: typeof body === 'string' ? body : body instanceof URLSearchParams ? String(body) : '', text, status }) }));
+  const account = () => document.querySelector('a[data-testid="AppTabBar_Profile_Link"]')?.getAttribute('href')?.split('/')[1]?.toLowerCase();
+  const emit = (url, body, text, status, owner) => {
+    // Profile responses may start before navigation renders; author filtering in model.js remains mandatory.
+    const profile = /\/(UserTweets\w*|User\w*Timeline)$/.test(String(url).split('?')[0]);
+    const fire = () => document.dispatchEvent(new CustomEvent('xdr:net', { detail: JSON.stringify({ url: String(url), body: typeof body === 'string' ? body : body instanceof URLSearchParams ? String(body) : '', text, status, account: owner ?? (profile ? account() : null) }) }));
     if (ready) fire(); else if (queue.length < 50) queue.push(fire);
   };
   document.addEventListener('xdr:ready', () => { ready = true; queue.splice(0).forEach(fire => fire()); }, { once: true });
@@ -22,6 +25,7 @@
   const nativeFetch = window.fetch;
   window.fetch = function (input, init) {
     const url = input instanceof Request ? input.url : String(input);
+    const owner = account();
     seen(url);
     // Read a Request's body before fetch consumes it. Never let this throw into X's own request.
     let body = null;
@@ -30,7 +34,7 @@
     } catch { body = null; }
     const promise = nativeFetch.apply(this, arguments);
     if (body) {
-      promise.then(res => Promise.all([body, res.clone().text()]).then(([b, t]) => emit(url, b, t, res.status))).catch(() => {});
+      promise.then(res => Promise.all([body, res.clone().text()]).then(([b, t]) => emit(url, b, t, res.status, owner))).catch(() => {});
     }
     return promise;
   };
@@ -42,10 +46,11 @@
     return open.apply(this, arguments);
   };
   XMLHttpRequest.prototype.send = function (body) {
+    const owner = account();
     if (watched(this.__xdrUrl ?? '')) {
       this.addEventListener('load', () => {
         const text = this.responseType === 'json' ? JSON.stringify(this.response) : ['', 'text'].includes(this.responseType) ? this.responseText : '';
-        emit(this.__xdrUrl, body, text, this.status);
+        emit(this.__xdrUrl, body, text, this.status, owner);
       });
     }
     return send.apply(this, arguments);

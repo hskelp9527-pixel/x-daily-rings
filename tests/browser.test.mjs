@@ -29,11 +29,12 @@ try {
     headless: true,
     ignoreDefaultArgs: ['--disable-extensions'],
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
-    viewport: { width: 1100, height: 760 }
+    viewport: { width: 1100, height: 760 }, hasTouch: true
   });
   await context.route('https://x.com/**', route => route.fulfill({ contentType: 'text/html; charset=utf-8', body: page }));
-  await context.route('https://x.com/i/api/**', route => {
+  await context.route('https://x.com/i/api/**', async route => {
     const body = route.request().postData() ?? '';
+    if (body.includes('DELAY')) await new Promise(resolve => setTimeout(resolve, 600));
     const json = body.includes('FAIL') ? { errors: [{ message: 'duplicate' }] } : { data: { create_tweet: { tweet_results: { result: { rest_id: String(nextId++) } } } } };
     route.fulfill({ contentType: 'application/json', body: JSON.stringify(json) });
   });
@@ -138,6 +139,22 @@ try {
   await tab.waitForFunction(() => document.querySelectorAll('[data-testid="UserCell"]')[1].dataset.xdrNo === '0');
   await tab.screenshot({ path: join(output, 'following.png') });
 
+  // Reset affects only the daily scan, is shared with other tabs, and remains paused after DOM mutations.
+  const second = await context.newPage();
+  await second.goto('https://x.com/me/following');
+  await second.locator('#x-daily-rings .reset-scan').waitFor();
+  await panel.locator('.reset-scan').click();
+  const waitStats = (target, text) => target.waitForFunction(expected => [...document.querySelector('#x-daily-rings').shadowRoot.querySelectorAll('.stats b')].map(b => b.textContent).join(',') === expected, text);
+  await waitStats(tab, '0,0,1'); await waitStats(second, '0,0,1');
+  await second.evaluate(() => document.body.append(document.createElement('div')));
+  await tab.waitForTimeout(600);
+  assert.equal(await stats(), '0,0,1');
+  assert.equal(await goal(0), '2 / 1', 'reset preserves output rings and goals');
+  assert.equal(await panel.locator('.reset-scan').getAttribute('aria-label'), '重新扫描');
+  await panel.locator('.reset-scan').click();
+  await waitStats(tab, '2,1,1'); await waitStats(second, '2,1,1');
+  await second.close();
+
   // drag, collapse, persistence across reload
   const box = await panel.locator('header').boundingBox();
   await tab.mouse.move(box.x + 30, box.y + 10);
@@ -159,6 +176,35 @@ try {
   assert.equal(await panel.locator('.mini').textContent(), '📝 2   ↩️ 2   🔁 2');
   const pos = await panel.evaluate(el => [el.offsetLeft, el.offsetTop]);
   assert.ok(Math.abs(pos[0] - 170) < 15 && Math.abs(pos[1] - 140) < 15, `position kept: ${pos}`);
+
+  assert.equal(await panel.locator('.actions').count(), 0, 'no added controls row');
+  assert.equal(await panel.locator('.reset-scan').textContent(), '↻');
+  // Account switching must not expose another account's counters or attribute a delayed request to it.
+  await tab.evaluate(() => {
+    window.delayedPublish = fetch('/i/api/graphql/abc/CreateTweet', { method: 'POST', body: JSON.stringify({ variables: { tweet_text: 'DELAY' } }) });
+    document.querySelector('[data-testid="AppTabBar_Profile_Link"]').setAttribute('href', '/other');
+  });
+  await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelector('.card').title === '@other');
+  await tab.evaluate(() => window.delayedPublish);
+  await tab.waitForTimeout(700);
+  assert.equal(await goal(0), '0 / 3');
+  await tab.evaluate(() => document.querySelector('[data-testid="AppTabBar_Profile_Link"]').setAttribute('href', '/me'));
+  await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelector('.goal').textContent === '2 / 1');
+
+  // Phone-sized layout, real touch drag and viewport clamp keep the panel above the mobile nav.
+  await tab.setViewportSize({ width: 390, height: 844 });
+  await panel.locator('.fold').click();
+  const touchBox = await panel.locator('header').boundingBox();
+  const cdp = await context.newCDPSession(tab);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: touchBox.x + 24, y: touchBox.y + 18 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 385, y: 825 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await tab.waitForTimeout(300);
+  const mobile = await panel.locator('.card').boundingBox();
+  assert.ok(mobile.x >= 0 && mobile.x + mobile.width <= 390, 'touch drag stays within screen width');
+  assert.ok(mobile.y >= 0 && mobile.y + mobile.height <= 844 - 75, 'bottom navigation stays reachable');
+  await tab.screenshot({ path: join(output, 'mobile.png') });
+  await cdp.detach();
 
   assert.deepEqual(errors, []);
   console.log('Browser checks passed; screenshots in artifacts/');

@@ -9,8 +9,25 @@
   const hhmm = d => d.toTimeString().slice(0, 5);
   // ponytail: X doesn't publish its follow cooldown; 30 min is a rule of thumb, so it's user-set (⏱ in the header).
   const DEFAULT_COOLDOWN_MIN = 30;
-  const store = chrome.storage.local;
-  const S = { goals: DEFAULT_GOALS, days: {}, ownIds: [], following: {}, panel: null, followLimitUntil: 0, followCooldownMin: DEFAULT_COOLDOWN_MIN };
+  const api = globalThis.browser ?? globalThis.chrome;
+  const S = { goals: DEFAULT_GOALS, days: {}, ownIds: [], following: {}, panel: null, followLimitUntil: 0, followCooldownMin: DEFAULT_COOLDOWN_MIN,
+    scanEpoch: 0, scanPaused: false, scanDay: '' };
+  const myHandle = () => {
+    const handle = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]')?.getAttribute('href')?.split('/')[1]?.toLowerCase();
+    return /^[a-z0-9_]{1,15}$/.test(handle ?? '') ? handle : null;
+  };
+  let activeAccount = null, generation = 0, legacyBackup = null, legacyBoundTo = null;
+  // Capture both account and generation before any async work; delayed responses never affect another account.
+  async function mutate(op, owner = activeAccount, gen = generation) {
+    if (!owner || owner !== myHandle() || owner !== activeAccount || gen !== generation) return null;
+    const result = await api.runtime.sendMessage({ channel: 'xdr-state', account: owner, op });
+    if (!result || result.error) throw new Error(result?.error ?? '扩展后台不可用');
+    if (owner !== activeAccount || owner !== myHandle() || gen !== generation) return null;
+    if ((result.state.revision ?? 0) >= (S.revision ?? 0)) Object.assign(S, result.state);
+    legacyBackup = result.legacyBackup; legacyBoundTo = result.legacyBoundTo;
+    place(); render();
+    return result;
+  }
   const cooldownMs = () => S.followCooldownMin * 60 * 1000;
   const today = () => ({ ...emptyDay(), ...S.days[dayKey()] });
 
@@ -33,7 +50,7 @@
       -webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);
       border:1px solid var(--edge);border-radius:24px;box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.55);overflow:hidden}
     .num,.stats b,.mini,form input{font-family:ui-rounded,"SF Pro Rounded",-apple-system,"Segoe UI",sans-serif;font-variant-numeric:tabular-nums}
-    header{display:flex;align-items:center;gap:6px;padding:12px 12px 4px 16px;cursor:grab;user-select:none}
+    header{display:flex;align-items:center;gap:6px;padding:12px 12px 4px 16px;cursor:grab;user-select:none;touch-action:none}
     header b{font-size:14px;font-weight:600;letter-spacing:.2px}
     header .date{flex:1;color:var(--sub);font-size:12px}
     button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
@@ -65,6 +82,8 @@
     .stats .no b{color:#ff2d55}
     .export{padding:5px 10px;border-radius:10px;font-size:12px;font-weight:600;color:#0a84ff;white-space:nowrap}
     .export:hover{background:rgba(10,132,255,.12)}
+    .reset-scan{color:#0a84ff;flex:none}.reset-scan.paused{background:rgba(10,132,255,.12)}
+    @media(max-width:600px){.card{max-width:calc(100vw - 16px);border-radius:18px}.icon{width:26px;height:32px}.toast{max-width:calc(100vw - 16px)}}
     .mini{display:none;padding:2px 16px 12px;font-size:14px;font-weight:600;white-space:nowrap}
     .collapsed .rings,.collapsed form,.collapsed .stats{display:none}.collapsed .mini{display:block}
     .toast{position:absolute;bottom:calc(100% + 10px);left:0;width:256px;padding:10px 14px;border-radius:18px;color:#fff;font:13px/1.45 -apple-system,"PingFang SC","Segoe UI",sans-serif;
@@ -79,7 +98,7 @@
   </style>
   <div class="toast"></div>
   <div class="card">
-    <header><b>今日输出</b><span class="date"></span><button class="icon cool-btn" title="关注限速等待时长">⏱︎</button><button class="icon gear" title="设置目标">⚙︎</button><button class="icon fold" title="收起 / 展开">–</button></header>
+    <header><b>今日输出</b><span class="date"></span><button class="icon reset-scan" title="重置今日扫描" aria-label="重置今日扫描">↻</button><button class="icon cool-btn" title="关注限速等待时长">⏱︎</button><button class="icon gear" title="设置目标">⚙︎</button><button class="icon fold" title="收起 / 展开">–</button></header>
     <div class="rings"></div>
     <form hidden>${KINDS.map(k => `<label>${LABELS[k]}目标<input name="${k}" type="number" min="1" step="1"></label>`).join('')}<button>保存目标</button></form>
     <form class="cool" hidden><label>关注限速等待（分钟）<input name="min" type="number" min="1" max="1440" step="1"></label><button>保存</button></form>
@@ -115,11 +134,16 @@
     $('.scan b').textContent = scanned.length;
     $('.no b').textContent = scanned.filter(u => !u.f).length;
     $('.unf b').textContent = day.unfollow;
+    const scanLabel = S.scanPaused ? '重新扫描' : '重置今日扫描';
+    $('.reset-scan').title = scanLabel;
+    $('.reset-scan').setAttribute('aria-label', scanLabel);
+    $('.reset-scan').classList.toggle('paused', S.scanPaused);
+    $('.card').title = activeAccount ? `@${activeAccount}` : '等待识别登录账号';
     card.classList.toggle('collapsed', !!S.panel?.collapsed);
     $('.fold').textContent = S.panel?.collapsed ? '+' : '–';
     // X's real cooldown is often longer than the wait set here, so the banner stays until a follow goes through.
     const until = S.followLimitUntil, now = Date.now();
-    if (until && now > until + 4 * cooldownMs()) store.set({ followLimitUntil: 0 }); // stale, nobody retried
+    if (until && now > until + 4 * cooldownMs()) mutate({ type: 'settings', followLimitUntil: 0 }).catch(() => {});
     if (until && now >= until && notifiedUntil !== until) {
       notifiedUntil = until;
       toast(`✅ 已过 ${S.followCooldownMin} 分钟，可以再试试关注了。`, 15000);
@@ -127,6 +151,8 @@
     $('.limit').hidden = !until;
     $('.limit').textContent = now < until ? `⏳ 关注被限速，约 ${hhmm(new Date(until))} 解除` : '⏳ 限速应已解除，关注一下试试；成功后这条会消失';
     theme();
+    refreshHighlights();
+    place();
   }
 
   // Body is transparent while X boots; reading that as black made the card flash dark on every reload.
@@ -137,9 +163,13 @@
 
   function place() {
     const p = S.panel ?? {};
-    const x = p.x ?? innerWidth - 280, y = p.y ?? innerHeight - 300;
-    host.style.left = Math.max(0, Math.min(x, innerWidth - 260)) + 'px';
-    host.style.top = Math.max(0, Math.min(y, innerHeight - 40)) + 'px';
+    const v = visualViewport, width = v?.width ?? innerWidth, height = v?.height ?? innerHeight;
+    const ox = v?.offsetLeft ?? 0, oy = v?.offsetTop ?? 0;
+    const bottom = width <= 600 ? 76 : 8; // keep X's mobile bottom navigation reachable
+    card.style.maxHeight = Math.max(80, height - bottom - 16) + 'px'; card.style.overflowY = 'auto';
+    const x = p.x ?? ox + width - host.offsetWidth - 12, y = p.y ?? oy + height - host.offsetHeight - bottom - 12;
+    host.style.left = Math.max(ox + 8, Math.min(x, ox + width - host.offsetWidth - 8)) + 'px';
+    host.style.top = Math.max(oy + 8, Math.min(y, oy + height - host.offsetHeight - bottom)) + 'px';
   }
 
   let toastTimer, cheerUntil = 0, notifiedUntil = 0;
@@ -179,28 +209,18 @@
   }
 
   // ---------- events from hook.js ----------
-  // Read-modify-write on storage, serialised across timeline pages and X tabs (same origin).
-  const locked = fn => navigator.locks.request('xdr-store', fn);
-
-  // Counts new tweets; any id already in ownIds was counted before (desktop or an earlier profile visit).
-  const record = (items, fromProfile) => locked(async () => {
-    const { days = {}, ownIds = [] } = await store.get(['days', 'ownIds']);
-    const key = dayKey(), before = { ...emptyDay(), ...days[key] }, day = { ...before, log: [...before.log] }, known = new Set(ownIds), fresh = [];
+  const record = async (items, fromProfile, owner = activeAccount, gen = generation) => {
+    const result = await mutate({ type: 'record', items: items.map(({ id, kind, at = new Date() }) => ({ id, kind, time: hhmm(new Date(at)) })) }, owner, gen);
+    if (!result) return;
+    const { before, after: day } = result;
     let cheer = null;
-    for (const { kind, id, at = new Date() } of items) {
-      if (id && known.has(String(id))) continue;
-      if (id) { known.add(String(id)); fresh.unshift(String(id)); }
-      day.log.push([id ? String(id) : null, kind, hhmm(at)]);
-      const prev = day[kind]++;
-      const tier = crossedTier(prev, day[kind], S.goals[kind]);
-      // The day's first closed ring always gets the signature line.
-      if (tier) cheer = { kind, tier, line: tier === 100 && !day.full ? FIRST_FULL : message(tier) };
-      if (tier === 100) day.full = true;
+    for (const kind of KINDS) {
+      const tier = crossedTier(before[kind], day[kind], S.goals[kind]);
+      if (tier) cheer = { kind, tier, line: tier === 100 && !before.full ? FIRST_FULL : message(tier) };
     }
     const added = KINDS.filter(k => day[k] > before[k]);
     // Profile visit with nothing new still says so, otherwise it looks like the scan never ran.
     if (!added.length) return fromProfile && items.length && toast(`✅ 主页核对完：今天 ${items.length} 条都已记录`, 3000, true);
-    await store.set({ days: { ...days, [key]: day }, ownIds: [...fresh, ...ownIds].slice(0, 2000) });
     added.forEach((k, i) => setTimeout(() => plus(k, day[k] - before[k]), 120 + i * 150)); // after the re-render
     if (cheer) {
       toast(`${ICONS[cheer.kind]} ${LABELS[cheer.kind]} ${cheer.tier}%：${cheer.line}`, 15000);
@@ -209,18 +229,20 @@
     } else if (fromProfile) {
       toast(`📥 从主页补录：${added.map(k => `${LABELS[k]} +${day[k] - before[k]}`).join('，')}`);
     }
-  });
+  };
 
   let profileToastPath = '';
   document.addEventListener('xdr:net', async e => {
     try {
-      const { url, body, text, status } = JSON.parse(e.detail);
+      const { url, body, text, status, account } = JSON.parse(e.detail);
+      const owner = activeAccount, gen = generation;
+      if (!owner || account?.toLowerCase() !== owner || owner !== myHandle()) return;
       const ok = status >= 200 && status < 300;
       if (url.includes('/friendships/create.json')) {
         if (followLimited(status, text)) {
-          await store.set({ followLimitUntil: Date.now() + cooldownMs() });
+          await mutate({ type: 'settings', followLimitUntil: Date.now() + cooldownMs() }, owner, gen);
           toast(`⏳ 关注被 X 限速了，${S.followCooldownMin} 分钟后提醒你。`, 6000);
-        } else if (ok && S.followLimitUntil) await store.set({ followLimitUntil: 0 }); // follows work again
+        } else if (ok && !JSON.parse(text)?.errors?.length) await mutate({ type: 'follow', uid: unfollowUid(body) }, owner, gen);
         return;
       }
       if (!ok) return;
@@ -231,48 +253,51 @@
         const own = location.pathname.toLowerCase().startsWith(`/${myHandle()?.toLowerCase()}`);
         if (own && !items.length && profileToastPath !== location.pathname) toast('🔍 主页扫描：收到时间线，但没认出今天的内容', 3000, true); // first page only
         profileToastPath = location.pathname;
-        return await record(items, true);
+        const cached = profileCache?.owner === owner && profileCache.key === dayKey() ? profileCache.items : [];
+        profileCache = { owner, key: dayKey(), items: [...new Map([...cached, ...items].map(item => [item.id, item])).values()] };
+        return await record(items, true, owner, gen);
       }
-      if (url.includes('/friendships/destroy.json')) return await locked(async () => {
-        const { days = {}, following = {} } = await store.get(['days', 'following']);
-        const key = dayKey(), day = { ...emptyDay(), ...days[key] };
-        day.unfollow++;
-        const uid = unfollowUid(body);
-        for (const u of Object.values(following)) if (u.uid === uid) u.gone = true;
-        await store.set({ days: { ...days, [key]: day }, following });
-      });
-      const { ownIds = [] } = await store.get('ownIds');
-      const r = classifyCreate(body, text, new Set(ownIds));
-      if (r) await record([r], false);
+      if (url.includes('/friendships/destroy.json')) {
+        let response; try { response = JSON.parse(text); } catch { return; }
+        if (response?.errors?.length) return;
+        return await mutate({ type: 'unfollow', uid: unfollowUid(body) }, owner, gen);
+      }
+      const r = classifyCreate(body, text, new Set(S.ownIds));
+      if (r) await record([r], false, owner, gen);
     } catch { /* extension reloaded or unexpected payload: never break X */ }
   });
-  document.dispatchEvent(new Event('xdr:ready'));
+  let profileCache = null;
 
   // ---------- "who doesn't follow back" on your own Following page ----------
-  const myHandle = () => document.querySelector('a[data-testid="AppTabBar_Profile_Link"]')?.getAttribute('href')?.slice(1);
-  let scanTimer = 0;
-  function scan() {
+  let scanTimer = 0, resetting = false;
+  function refreshHighlights() {
+    const ownFollowing = activeAccount && activeAccount === myHandle() && location.pathname.toLowerCase() === `/${activeAccount}/following` && !S.scanPaused;
+    for (const cell of document.querySelectorAll('[data-testid="UserCell"]')) {
+      const handle = cell.querySelector('a[href^="/"]')?.getAttribute('href')?.split('/')[1]?.toLowerCase();
+      const following = !!cell.querySelector('[data-testid$="-unfollow"]');
+      cell.dataset.xdrNo = ownFollowing && following && !cell.querySelector('[data-testid="userFollowIndicator"]') && !S.following[handle]?.gone ? '1' : '0';
+    }
+  }
+  async function scan() {
     scanTimer = 0;
     theme();
     const me = myHandle();
-    if (!me || location.pathname.toLowerCase() !== `/${me.toLowerCase()}/following`) return;
-    const next = { ...S.following };
+    if (!me || me !== activeAccount || resetting || S.scanPaused || location.pathname.toLowerCase() !== `/${me}/following`) return;
+    const rows = [], epoch = S.scanEpoch, gen = generation;
     for (const cell of document.querySelectorAll('[data-testid="UserCell"]')) {
       const handle = cell.querySelector('a[href^="/"]')?.getAttribute('href').split('/')[1];
       const btn = cell.querySelector('[data-testid$="-unfollow"],[data-testid$="-follow"]');
       if (!handle || !btn) continue;
       const [uid, state] = btn.dataset.testid.split('-');
       const followsYou = !!cell.querySelector('[data-testid="userFollowIndicator"]');
-      if (state === 'unfollow') next[handle] = { uid, f: followsYou, d: dayKey() };
-      else if (next[handle]) next[handle] = { ...next[handle], gone: true };
-      cell.dataset.xdrNo = state === 'unfollow' && !followsYou ? '1' : '0';
+      rows.push({ handle, uid, f: followsYou, following: state === 'unfollow' });
     }
-    if (JSON.stringify(next) !== JSON.stringify(S.following)) store.set({ following: next }).catch(() => {});
+    if (rows.length) await mutate({ type: 'scan', rows, epoch, day: dayKey() }, me, gen).catch(() => {});
   }
-  new MutationObserver(() => { scanTimer ||= setTimeout(scan, 300); }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-testid'] });
+  new MutationObserver(() => { ensureAccount(); scanTimer ||= setTimeout(scan, 300); }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-testid', 'href'] });
 
   // ---------- controls ----------
-  $('.fold').onclick = () => store.set({ panel: { ...S.panel, collapsed: !S.panel?.collapsed } });
+  $('.fold').onclick = () => mutate({ type: 'settings', panel: { collapsed: !S.panel?.collapsed } }).catch(reportError);
   $('.gear').onclick = () => {
     form.hidden = !form.hidden;
     for (const k of KINDS) form.elements[k].value = S.goals[k];
@@ -281,7 +306,7 @@
     e.preventDefault();
     const goals = Object.fromEntries(KINDS.map(k => [k, Math.max(1, Math.round(+form.elements[k].value) || S.goals[k])]));
     form.hidden = true;
-    store.set({ goals });
+    mutate({ type: 'settings', goals }).catch(reportError);
   };
   $('.cool-btn').onclick = () => {
     coolForm.hidden = !coolForm.hidden;
@@ -291,12 +316,13 @@
     e.preventDefault();
     const min = Math.min(1440, Math.max(1, Math.round(+coolForm.elements.min.value) || S.followCooldownMin));
     coolForm.hidden = true;
-    store.set({ followCooldownMin: min });
+    mutate({ type: 'settings', followCooldownMin: min }).catch(reportError);
   };
   $('.export').onclick = () => {
     const people = Object.entries(S.following);
     const data = {
       exportedAt: new Date().toISOString(),
+      account: activeAccount, legacyBoundTo, legacyBackup,
       goals: S.goals,
       days: S.days,
       notFollowingBack: people.filter(([, u]) => !u.f && !u.gone).map(([h]) => '@' + h),
@@ -308,32 +334,77 @@
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
+  $('.reset-scan').onclick = async () => {
+    const button = $('.reset-scan'), resume = S.scanPaused;
+    button.disabled = true;
+    resetting = true;
+    clearTimeout(scanTimer); scanTimer = 0;
+    // Freeze this tab immediately. Other tabs use the persisted epoch and background queue.
+    S.scanPaused = true;
+    try {
+      await mutate({ type: resume ? 'resume' : 'reset' });
+      if (resume) { resetting = false; await scan(); toast('已重新扫描当前加载的名单；继续滚动可补充'); }
+      else {
+        document.querySelectorAll('[data-xdr-no]').forEach(el => delete el.dataset.xdrNo);
+        toast('今日扫描已清零并暂停；点“重新扫描”后继续');
+      }
+    } catch (error) { reportError(error); await mutate({ type: 'read' }).catch(() => {}); }
+    finally { resetting = false; button.disabled = false; }
+  };
   $('header').addEventListener('pointerdown', e => {
-    if (e.target.closest('button')) return;
+    if (e.target.closest('button') || !e.isPrimary || e.button !== 0) return;
+    e.preventDefault();
+    const header = $('header'); header.setPointerCapture(e.pointerId);
     const sx = e.clientX - host.offsetLeft, sy = e.clientY - host.offsetTop;
-    const move = m => { host.style.left = m.clientX - sx + 'px'; host.style.top = m.clientY - sy + 'px'; };
+    const original = S.panel;
+    const move = m => { S.panel = { ...S.panel, x: m.clientX - sx, y: m.clientY - sy }; place(); };
     const up = () => {
       removeEventListener('pointermove', move);
       removeEventListener('pointerup', up);
-      store.set({ panel: { ...S.panel, x: host.offsetLeft, y: host.offsetTop } });
+      removeEventListener('pointercancel', cancel);
+      if (header.hasPointerCapture(e.pointerId)) header.releasePointerCapture(e.pointerId);
+      mutate({ type: 'settings', panel: { x: host.offsetLeft, y: host.offsetTop } }).catch(reportError);
     };
+    const cancel = () => { S.panel = original; place(); up(); };
     addEventListener('pointermove', move);
     addEventListener('pointerup', up);
+    addEventListener('pointercancel', cancel);
   });
 
   // ---------- boot ----------
-  chrome.storage.onChanged.addListener((changes, area) => {
+  api.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
-    for (const [k, { newValue }] of Object.entries(changes)) if (k in S) S[k] = newValue ?? (k === 'goals' ? DEFAULT_GOALS : S[k]);
+    const state = changes.accounts?.newValue?.[activeAccount];
+    if (!state || activeAccount !== myHandle()) return;
+    if ((state.revision ?? 0) < (S.revision ?? 0)) return;
+    Object.assign(S, state);
+    if (S.scanPaused) document.querySelectorAll('[data-xdr-no]').forEach(el => delete el.dataset.xdrNo);
     place();
     render();
   });
-  store.get(Object.keys(S)).then(saved => {
-    Object.assign(S, saved);
-    document.body.append(host);
-    place();
+  function reportError() { toast('保存未完成，请刷新 X 页面后重试；原有记录仍保留', 5000); }
+  let loadingAccount = null;
+  async function ensureAccount() {
+    const next = myHandle();
+    if (next === activeAccount || next === loadingAccount) return;
+    generation++; const gen = generation; activeAccount = next; loadingAccount = next;
+    profileCache = null; profileToastPath = ''; notifiedUntil = 0;
+    Object.assign(S, { goals: DEFAULT_GOALS, days: {}, ownIds: [], following: {}, panel: null, followLimitUntil: 0, followCooldownMin: DEFAULT_COOLDOWN_MIN, scanEpoch: 0, scanPaused: false, scanDay: '', revision: 0 });
+    document.querySelectorAll('[data-xdr-no]').forEach(el => delete el.dataset.xdrNo);
     render();
-    setInterval(render, 30000); // midnight rollover
-    addEventListener('resize', place);
-  });
+    if (!next) { loadingAccount = null; return; }
+    try {
+      const loaded = await mutate({ type: 'read' }, next, gen);
+      if (!loaded) return;
+      // Drain only after storage is ready. hook.js captures the account at request initiation.
+      document.dispatchEvent(new Event('xdr:ready'));
+      await scan();
+    } catch { if (generation === gen) { activeAccount = null; reportError(); } }
+    finally { if (loadingAccount === next) loadingAccount = null; }
+  }
+  document.body.append(host); render(); ensureAccount();
+  setInterval(() => { ensureAccount(); mutate({ type: 'read' }).catch(() => {}); }, 30000);
+  addEventListener('resize', place);
+  visualViewport?.addEventListener('resize', place);
+  visualViewport?.addEventListener('scroll', place);
 })();

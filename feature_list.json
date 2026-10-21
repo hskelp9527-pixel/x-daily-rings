@@ -1,0 +1,55 @@
+{
+  "version": "0.3.1",
+  "updated": "2026-10-21",
+  "verification": "desktop-tests-passed; android-device-user-validation-pending",
+  "features": [
+    {
+      "id": "scan-reset",
+      "implemented": true,
+      "behavior": "只清今日扫描并暂停；显式重新扫描",
+      "tests": "state + browser, passed"
+    },
+    {
+      "id": "serialized-storage",
+      "implemented": true,
+      "behavior": "跨标签和x.com/twitter.com后台队列；epoch拒绝旧扫描",
+      "tests": "state + browser, passed"
+    },
+    {
+      "id": "account-partition",
+      "implemented": true,
+      "behavior": "按@ID隔离；旧数据首次绑定并保留备份",
+      "tests": "state + browser, passed"
+    },
+    {
+      "id": "mobile-input",
+      "implemented": true,
+      "behavior": "pointer触控拖动、cancel、viewport夹限和底部导航留白",
+      "tests": "Chromium手机尺寸模拟, passed"
+    },
+    {
+      "id": "page-recapture",
+      "implemented": true,
+      "behavior": "读取X已加载本人今日时间线，无额外请求",
+      "tests": "model + browser, passed"
+    },
+    {
+      "id": "firefox",
+      "implemented": true,
+      "behavior": "独立background scripts清单与未签名ZIP/XPI",
+      "tests": "static passed; real-device not-tested"
+    },
+    {
+      "id": "safari-source",
+      "implemented": true,
+      "behavior": "Safari转换源码包，非可安装iOS App",
+      "tests": "not-converted-not-signed-not-device-tested"
+    },
+    {
+      "id": "release-gates",
+      "implemented": true,
+      "behavior": "checks/release均执行逻辑+清单+Linux浏览器测试后打包",
+      "tests": "local passed; GitHub previous commit passed; latest run pending"
+    }
+  ]
+}

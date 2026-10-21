@@ -15,7 +15,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - run: npm run check:manifests
+      - run: node --check hook.js && node --check model.js && node --check state.js && node --check background.js && node --check content.js
+      - run: npx playwright-core install --with-deps chromium
+      - run: npm run test:browser
       - run: python3 scripts/package.py
-      - run: gh release create "$GITHUB_REF_NAME" dist/x-daily-rings.zip --title "$GITHUB_REF_NAME" --generate-notes
+      - run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}

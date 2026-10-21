@@ -1,94 +1,74 @@
 # X Daily Rings · 每日输出环
 
-**今天发了几条、回了几条、引用了几条？挂在 X 页面上，一眼就知道。**
+在 X 网页显示今天的发帖、回复、引用数量，扫描已加载的关注名单，并支持清空今日扫描后重新扫描。数据仅保存在当前浏览器，不需要云端。
 
-一个 Chrome / Edge 插件：在 X 页面放一张可以拖动的悬浮卡片，用三个圆环记录当天的发帖、回复、引用数量，目标自己定。进度到 25%、50%、75% 时冒一句鼓励，满环放彩带。顺带在你的「正在关注」页面，把没有回关你的人标出来。
+[下载](https://github.com/hskelp9527-pixel/x-daily-rings/releases/latest) · [反馈](https://github.com/hskelp9527-pixel/x-daily-rings/issues/new/choose)
 
-[下载安装包](https://github.com/hskelp9527-pixel/x-daily-rings/releases/latest) · [反馈问题](https://github.com/hskelp9527-pixel/x-daily-rings/issues/new/choose) · [English](#english)
+## 0.3.0 的使用方式
 
-[![Checks](https://github.com/hskelp9527-pixel/x-daily-rings/actions/workflows/checks.yml/badge.svg)](https://github.com/hskelp9527-pixel/x-daily-rings/actions/workflows/checks.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+- **输出环**：三个每日目标，按浏览器当地日期切换。点 ⚙ 修改目标；25%、50%、75% 和完成时给出鼓励。
+- **补录另一设备发布的内容**：在当前设备打开自己的 X 主页「回复」标签，手动向下滚动加载今天的内容，插件读取 X 自己的时间线响应，按帖子 ID 去重。也可点自动补录核对本页已经读到的内容。不会自动滚动或主动请求 X；未加载的内容、已删内容无法补回。
+- **关注名单扫描**：打开自己的「正在关注」页面，读取当前加载的用户，显示「已扫描 / 没回关 / 今日取关」，未回关的行标红。只认当前登录账号的关注页。
+- **重置今日扫描**：仅清除今天「已扫描」「没回关」的计数并暂停扫描。按钮变为「重新扫描」；再次点击会扫描当前已经加载的名单，之后继续手动滚动可补充。输出环、目标、今日取关、历史记录保留。其他标签页也一起暂停，旧批次的延迟回调不能把数据写回来。
+- **取关**：仍然手动点 X 自己的按钮；只有成功响应才记录。今日取关按用户去重。已经取关的人不会因另一个标签页里残留的旧按钮重新变成在关注。
+- **拖动与收起**：拖动卡片标题，点 – 收起；支持鼠标与触摸。卡片限制在可见区域内，窄屏底部预留导航位置。
+- **关注限速提醒**：识别 X 的限速失败，默认等待 30 分钟。点 ⏱ 可以修改为 1–1440 分钟。等待时间是经验值，X 没有公开固定解除规则；页面都关掉时不会主动提醒。
+- **导出**：导出当前账号的每日数量、逐条 ID / 类型 / 时间、目标、没回关 / 已取关名单和旧版备份。
 
-<img src="docs/images/panel.png" width="300" alt="悬浮卡片：三个每日圆环和关注限速提醒"> <img src="docs/images/settings.png" width="330" alt="点 ⚙ 设定每日目标">
+这是一种按当前页面重新获取信息的方式：手机与电脑各自扫描，并非设备间自动同步。没有在当前设备加载过的完整名单、过去日期的设备记录和另一台设备的目标设置不会自动出现。
 
-<img src="docs/images/following.png" width="600" alt="正在关注页面里没回关的人被高亮">
+## 账号与旧版数据
 
-## 能做什么
+新数据按当前登录账号的 **@ID** 分区，切换账号会切换面板，延迟到达的上一账号响应不会计入当前账号。账号未识别时不记录；切换时未完成的响应可在自己的主页重新加载后补录。
 
-- **三个圆环**：发帖、回复、引用，圆环中间是今天的数量。点 ⚙ 设目标，过了电脑上的 0 点自动清零。
-- **补录手机上发的**：在电脑上打开自己主页的「回复」标签，往下滚到出现昨天的帖子，今天在手机上发的帖子、回复、引用会补进圆环。按帖子 ID 去重，不会重复计数。
-- **鼓励**：每个环到 25% / 50% / 75% 冒一句话，停留 15 秒；到 100% 放彩带。目标定得很高时（比如回复 500），一天只会冒几次。
-- **没回关高亮**：打开自己的「正在关注」页面往下滚，没有「关注了你」标签的人整行标红。卡片底部分开显示「已扫描」「没回关」「今日取关」，都只算今天扫描到的人，每天清零；取关后前两个数字不会减少。
-- **取关计数**：取关仍然点 X 自己的按钮，插件只记下今天取关了几个。
-- **关注限速提醒**：关注时被 X 限速，卡片上显示预计解除时间，到点在页面里提醒再试；横幅留到下一次关注成功才消失。等待时长默认 30 分钟，点卡片头部的 ⏱ 可以改成 1–1440 分钟。30 分钟是经验值，X 没有公开具体规则；X 页面都关掉时不会提醒，下次打开再补。
-- **悬浮卡片**：拖到哪里就停在哪里，点 – 收起成一行小字。
-- **导出**：每天的数量和逐条明细（帖子 ID、类型、时间）、目标、没回关名单，导出成一个 JSON 文件，可用来和 X 后台对账。
+旧版本没有保存所属账号，因此升级后会把旧记录绑定到**首次识别到的账号**，卡片明确显示绑定提示。升级前建议先在旧版导出，并确保先打开旧数据所属的 X 账号。原始旧数据另保留在 `legacyBackup`，不会因扫描重置删除；导出包含 `legacyBoundTo` 和原始备份。@ID 改名会被视为另一分区，可先导出保留原数据。
 
-## 会不会被当成机器人？
+## 浏览器与手机
 
-插件的设计原则是**只看，不动手**：
+| 平台 | 支持状态与安装途径 |
+| --- | --- |
+| Windows / macOS Chrome、Edge | 使用 `x-daily-rings.zip`，开发者模式加载解压目录 |
+| 桌面 Firefox | 使用独立 Firefox 包，Firefox 142+；开发时可在 `about:debugging` 临时加载解压目录的 manifest.json |
+| 安卓 Firefox | 已提供 Firefox 142+ 清单和触控布局，**尚未安卓实机验证**。正式安装需要 AMO 签名 / 上架；仓库中的 unsigned XPI 不能当作普通用户可直接安装的已签名插件 |
+| 安卓 Chrome | 不支持这种扩展，手机端请使用 Firefox 等支持扩展的浏览器 |
+| iPhone Safari | 提供 Safari 转换源包，尚未转换、签名或实机验证。可用 Apple Safari Web Extension Packager 在线转换，或在 Mac 上用 Xcode 转换，再签名分发和实机验证 |
+| iPhone Chrome / X App | 无法加载本插件 |
 
-- 不调用 X API，不额外发出任何请求。计数的方式是：你自己发帖时，X 网页会收到「发布成功」的返回，插件读这份返回来判断这一条是发帖、回复还是引用；补录手机上的内容，读的是你打开主页时 X 自己加载的时间线。
-- 没回关名单只读你滚动到的、页面上已经显示的内容，不自动翻页，不自动点击。
-- 取关只能你自己点，没有批量取关、一键取关。
+Firefox 包与 Chrome 包的运行代码相同，但后台清单不同：Chrome 使用 service worker，Firefox 使用 background scripts。网络观察脚本在 MAIN world 运行；跨 world 事件只传 JSON 字符串，避免 Firefox 对扩展世界对象访问的限制。
 
-从 X 服务器的角度看，装不装插件，你发出的请求都一模一样。
+Safari 转换源包 `x-daily-rings-safari-source.zip` 解压后，可在 Mac 上执行 `xcrun safari-web-extension-converter <解压目录>`。这是待适配的源码入口，不是可安装的 iOS App，也可通过 Apple 的在线 Packager 转换；仍需开发者账号和设备验证。
 
-## 已知限制
+## 桌面安装与更新
 
-- 手机上和定时发送的内容，要在电脑上打开自己主页的「回复」标签才会补录，只补今天的，只补已经滚动加载出来的。
-- 转帖（不加评论）不计入；编辑帖子不重复计数；删掉的帖子不会扣回。
-- 回复自己的帖子（比如连续发帖串）记作发帖，不算回复。
-- 依赖 X 网页的内部结构。X 改版后如果计数或高亮失效，请[提个 Issue](https://github.com/hskelp9527-pixel/x-daily-rings/issues/new/choose)。
+1. 下载 `x-daily-rings.zip` 并解压到长期保留的目录。
+2. 打开 `chrome://extensions` 或 `edge://extensions`，启用开发者模式。
+3. 选择「加载已解压的扩展程序」，选中含 manifest.json 的目录，再刷新 X。
 
-## 安装，三步即可
+更新前点「导出」备份，用新版本覆盖原目录，在扩展管理页重新加载，再刷新 X。不要卸载重装，卸载会清除本机存储。
 
-目前通过开发者模式安装，尚未上架 Chrome Web Store 或 Edge Add-ons。Windows 和 macOS 上的 Chrome、Edge 都能用（Safari 不支持）。
+## 数据与边界
 
-1. 在 [Releases](https://github.com/hskelp9527-pixel/x-daily-rings/releases/latest) 下载 **x-daily-rings.zip**，解压到一个准备长期保留的文件夹。
+只观察 X 网页自己的网络响应和已加载用户行，不发送额外 X API 请求，不自动翻页、不自动发帖、不自动取关。只有 storage 权限，无服务器、统计或云同步。Chrome 与 Firefox 的所有修改都经扩展后台串行处理，x.com / twitter.com 和多个标签页共同使用同一个队列。
 
-   <img src="docs/images/install-download.png" width="600" alt="Releases 页面下载 x-daily-rings.zip">
-2. Chrome 地址栏打开 `chrome://extensions`，Edge 打开 `edge://extensions`，开启右上角「开发者模式」。
-3. 点击左上角「加载未打包的扩展程序」（Edge 叫「加载解压缩的扩展」），选择包含 `manifest.json` 的文件夹，然后刷新已打开的 X 页面。
+纯转帖不计入，编辑按原始 ID 去重，删除不会扣回，回复自己算发帖。引用正文里嵌入的本人帖子不会再计一次。插件依赖 X 页面结构与响应格式，改版可能需要更新。计数与扫描不代表 X 的官方后台完整数据。
 
-   <img src="docs/images/install-load.png" width="700" alt="开启开发者模式，加载未打包的扩展程序">
+## 开发、检查与发布
 
-   看到这张卡片就装好了：
-
-   <img src="docs/images/install-done.png" width="320" alt="安装成功的扩展卡片">
-
-更新时先点卡片上的「导出」备份，再把新版本解压到同一文件夹，在扩展页面点「重新加载」并刷新 X。尽量不要卸载重装，卸载会清除本机数据。
-
-## 隐私
-
-所有数据只存在当前浏览器的 `chrome.storage.local`，没有服务器、没有统计、没有云同步。权限只有 `storage`；脚本只在 x.com / twitter.com 上运行。全部运行代码都在仓库里，没有第三方运行时依赖。
-
-## 开发与验证
-
-运行插件无需构建。测试需要 Node.js 22+：
+运行不需要构建。Node.js 22+，Python 3：
 
 ```sh
 npm ci
-npm test                 # 计数分类、里程碑、日期切换
-npm run test:browser     # 真实插件 + 模拟 X 页面：计数、高亮、取关、拖动、持久化
+npm test
+npm run check:manifests
+npx playwright-core install --with-deps chromium
+npm run test:browser
+python scripts/package.py
 ```
 
-浏览器测试默认使用本机 Edge，也可以设置 `BROWSER_PATH`。测试使用临时浏览器资料，不登录任何账号。
+浏览器测试只使用模拟 X 网页、临时浏览器资料，不登录真实账号，也不真实发帖或取关。默认用 Windows 上已安装的 Edge，否则用 Playwright Chromium；可用 BROWSER_PATH 指定。测试覆盖请求观察、补录、取关、重置、跨标签暂停、账号隔离、延迟响应、拖动、窄屏触摸和持久化。Firefox 清单检查仅是静态检查，不能替代 Firefox Android 实机验收。
 
-打包：`python scripts/package.py`，产物在 `dist/x-daily-rings.zip`。推送 `v*` tag 时 GitHub Actions 会自动打包并发布 Release。贡献方式见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+打包在 dist/ 生成 Chrome ZIP、Firefox ZIP、Firefox unsigned XPI 和 Safari 转换源码 ZIP。检查与 tag 发布工作流均先执行单元测试、清单检查、安装 Linux Chromium、真实扩展浏览器测试，再打包；失败不发布。具体记录见 progress.md 和 feature_list.json。
 
-同一作者的另一个 X 插件：[记得 @ · X Mention Saver](https://github.com/hskelp9527-pixel/x-mention-saver)，选中用户名即可收藏，发帖时一键复制 @。
+同系列：[记得 @](https://github.com/hskelp9527-pixel/x-mention-saver)。MIT；独立项目，与 X Corp 无隶属关系。
 
-## English
-
-**How many posts, replies and quotes did you ship on X today? See it at a glance.**
-
-X Daily Rings is a Chrome / Edge extension (Chinese UI) that pins a draggable card on X with three daily rings: posts, replies and quotes, each with your own goal. You get a short cheer at 25 / 50 / 75 % and confetti when a ring closes. Counts reset at local midnight. Posts made on your phone are picked up when you open your profile's Replies tab (deduplicated by tweet id). If X rate-limits a follow, the card shows when the 30-minute cooldown ends and reminds you in-page. On your own Following page it also highlights everyone who does not follow you back; unfollowing stays a manual click on X's own button, and the card counts today's unfollows.
-
-It only reads, never acts: no X API calls and no extra requests. Counting reads the responses X's own web app receives when *you* publish or open your profile; the follow-back check reads only rows you have scrolled into view. No auto-scroll, no bulk unfollow. Data lives in `chrome.storage.local` and can be exported as JSON.
-
-Limits: posts from other devices and scheduled posts only count once you open your profile's Replies tab; reposts and edits are not counted; deletions are not subtracted; replies to your own posts (threads) count as posts. X markup changes may break counting or highlighting until an update ships.
-
-Install: download **x-daily-rings.zip** from [Releases](https://github.com/hskelp9527-pixel/x-daily-rings/releases/latest), unzip, enable Developer mode in `chrome://extensions` or `edge://extensions`, choose **Load unpacked**, select the folder with `manifest.json`, and refresh X.
-
-MIT licensed. Independent project, not affiliated with X Corp.
+0.3.1：保留原卡片布局，重置/重扫使用标题栏的 ↻ 小图标，不增加整排按钮。主页时间线仍自动补录。
