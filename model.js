@@ -75,7 +75,8 @@ globalThis.XDR = (() => {
         const id = o.edit_control?.initial_tweet_id ?? o.edit_control?.edit_tweet_ids?.[0] ?? o.rest_id;
         out.set(String(id), { kind, at: new Date(l.created_at) });
       }
-      for (const v of Object.values(o)) walk(v);
+      // Embedded quoted/retweeted tweets are context, not another item in your timeline.
+      for (const [field, v] of Object.entries(o)) if (!['quoted_status_result', 'retweeted_status_result'].includes(field)) walk(v);
     };
     if (me) walk(parse(text));
     return [...out].map(([id, t]) => ({ id, ...t }));
