@@ -28,15 +28,15 @@
 | 平台 | 支持状态与安装途径 |
 | --- | --- |
 | Windows / macOS Chrome、Edge | 使用 `x-daily-rings.zip`，开发者模式加载解压目录 |
-| 桌面 Firefox | 使用独立 Firefox 包，Firefox 140+；开发时可在 `about:debugging` 临时加载解压目录的 manifest.json |
-| 安卓 Firefox | 已提供 Firefox 140+ 清单和触控布局，**尚未安卓实机验证**。正式安装需要 AMO 签名 / 上架；仓库中的 unsigned XPI 不能当作普通用户可直接安装的已签名插件 |
+| 桌面 Firefox | 使用独立 Firefox 包，Firefox 142+；开发时可在 `about:debugging` 临时加载解压目录的 manifest.json |
+| 安卓 Firefox | 已提供 Firefox 142+ 清单和触控布局，**尚未安卓实机验证**。正式安装需要 AMO 签名 / 上架；仓库中的 unsigned XPI 不能当作普通用户可直接安装的已签名插件 |
 | 安卓 Chrome | 不支持这种扩展，手机端请使用 Firefox 等支持扩展的浏览器 |
-| iPhone Safari | 提供 Safari 转换源包，尚未转换、签名或实机验证。需在 Mac 上用 Xcode 转为 Safari Web Extension App 并签名安装 |
+| iPhone Safari | 提供 Safari 转换源包，尚未转换、签名或实机验证。可用 Apple Safari Web Extension Packager 在线转换，或在 Mac 上用 Xcode 转换，再签名分发和实机验证 |
 | iPhone Chrome / X App | 无法加载本插件 |
 
 Firefox 包与 Chrome 包的运行代码相同，但后台清单不同：Chrome 使用 service worker，Firefox 使用 background scripts。网络观察脚本在 MAIN world 运行；跨 world 事件只传 JSON 字符串，避免 Firefox 对扩展世界对象访问的限制。
 
-Safari 转换源包 `x-daily-rings-safari-source.zip` 解压后，可在 Mac 上执行 `xcrun safari-web-extension-converter <解压目录>`。这是待适配的源码入口，不是可安装的 iOS App，Windows 上不能完成 Xcode 签名。
+Safari 转换源包 `x-daily-rings-safari-source.zip` 解压后，可在 Mac 上执行 `xcrun safari-web-extension-converter <解压目录>`。这是待适配的源码入口，不是可安装的 iOS App，也可通过 Apple 的在线 Packager 转换；仍需开发者账号和设备验证。
 
 ## 桌面安装与更新
 
