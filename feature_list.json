@@ -1,5 +1,5 @@
 {
-  "version": "0.3.0",
+  "version": "0.3.1",
   "updated": "2026-10-21",
   "verification": "desktop-tests-passed; android-device-user-validation-pending",
   "features": [
@@ -49,7 +49,7 @@
       "id": "release-gates",
       "implemented": true,
       "behavior": "checks/release均执行逻辑+清单+Linux浏览器测试后打包",
-      "tests": "workflow-run passed"
+      "tests": "local passed; GitHub previous commit passed; latest run pending"
     }
   ]
 }

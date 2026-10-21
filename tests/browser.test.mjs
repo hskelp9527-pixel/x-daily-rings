@@ -150,7 +150,7 @@ try {
   await tab.waitForTimeout(600);
   assert.equal(await stats(), '0,0,1');
   assert.equal(await goal(0), '2 / 1', 'reset preserves output rings and goals');
-  assert.equal(await panel.locator('.reset-scan').textContent(), '重新扫描');
+  assert.equal(await panel.locator('.reset-scan').getAttribute('aria-label'), '重新扫描');
   await panel.locator('.reset-scan').click();
   await waitStats(tab, '2,1,1'); await waitStats(second, '2,1,1');
   await second.close();
@@ -177,12 +177,14 @@ try {
   const pos = await panel.evaluate(el => [el.offsetLeft, el.offsetTop]);
   assert.ok(Math.abs(pos[0] - 170) < 15 && Math.abs(pos[1] - 140) < 15, `position kept: ${pos}`);
 
+  assert.equal(await panel.locator('.actions').count(), 0, 'no added controls row');
+  assert.equal(await panel.locator('.reset-scan').textContent(), '↻');
   // Account switching must not expose another account's counters or attribute a delayed request to it.
   await tab.evaluate(() => {
     window.delayedPublish = fetch('/i/api/graphql/abc/CreateTweet', { method: 'POST', body: JSON.stringify({ variables: { tweet_text: 'DELAY' } }) });
     document.querySelector('[data-testid="AppTabBar_Profile_Link"]').setAttribute('href', '/other');
   });
-  await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelector('.account').textContent.startsWith('@other'));
+  await tab.waitForFunction(() => document.querySelector('#x-daily-rings').shadowRoot.querySelector('.card').title === '@other');
   await tab.evaluate(() => window.delayedPublish);
   await tab.waitForTimeout(700);
   assert.equal(await goal(0), '0 / 3');

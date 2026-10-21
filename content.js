@@ -82,10 +82,8 @@
     .stats .no b{color:#ff2d55}
     .export{padding:5px 10px;border-radius:10px;font-size:12px;font-weight:600;color:#0a84ff;white-space:nowrap}
     .export:hover{background:rgba(10,132,255,.12)}
-    .actions{display:flex;gap:4px;padding:0 10px 10px;flex-wrap:wrap}.actions button{min-height:36px;padding:6px 10px;color:#0a84ff;background:var(--well);border-radius:10px;font-size:12px}
-    .account{font-size:11px;color:var(--sub);padding:0 14px 8px;overflow-wrap:anywhere}
-    .collapsed .actions,.collapsed .account{display:none}
-    @media(max-width:600px){.card{max-width:calc(100vw - 16px);border-radius:18px}.icon{width:32px;height:36px}.actions button{min-height:44px}.toast{max-width:calc(100vw - 16px)}}
+    .reset-scan{color:#0a84ff;flex:none}.reset-scan.paused{background:rgba(10,132,255,.12)}
+    @media(max-width:600px){.card{max-width:calc(100vw - 16px);border-radius:18px}.icon{width:26px;height:32px}.toast{max-width:calc(100vw - 16px)}}
     .mini{display:none;padding:2px 16px 12px;font-size:14px;font-weight:600;white-space:nowrap}
     .collapsed .rings,.collapsed form,.collapsed .stats{display:none}.collapsed .mini{display:block}
     .toast{position:absolute;bottom:calc(100% + 10px);left:0;width:256px;padding:10px 14px;border-radius:18px;color:#fff;font:13px/1.45 -apple-system,"PingFang SC","Segoe UI",sans-serif;
@@ -100,20 +98,18 @@
   </style>
   <div class="toast"></div>
   <div class="card">
-    <header><b>今日输出</b><span class="date"></span><button class="icon cool-btn" title="关注限速等待时长">⏱︎</button><button class="icon gear" title="设置目标">⚙︎</button><button class="icon fold" title="收起 / 展开">–</button></header>
+    <header><b>今日输出</b><span class="date"></span><button class="icon reset-scan" title="重置今日扫描" aria-label="重置今日扫描">↻</button><button class="icon cool-btn" title="关注限速等待时长">⏱︎</button><button class="icon gear" title="设置目标">⚙︎</button><button class="icon fold" title="收起 / 展开">–</button></header>
     <div class="rings"></div>
     <form hidden>${KINDS.map(k => `<label>${LABELS[k]}目标<input name="${k}" type="number" min="1" step="1"></label>`).join('')}<button>保存目标</button></form>
     <form class="cool" hidden><label>关注限速等待（分钟）<input name="min" type="number" min="1" max="1440" step="1"></label><button>保存</button></form>
     <div class="mini"></div>
     <div class="limit" hidden></div>
-    <div class="account"></div>
     <div class="stats">
       <div class="scan"><b>0</b><span>已扫描</span></div>
       <div class="no"><b>0</b><span>没回关</span></div>
       <div class="unf"><b>0</b><span>今日取关</span></div>
       <button class="export" title="导出全部数据为 JSON">导出</button>
     </div>
-    <div class="actions"><button class="reset-scan" title="暂停扫描并仅清除今日已扫描、没回关；保留输出与取关">重置今日扫描</button><button class="profile-scan" title="核对当前账号今日已加载的主页时间线">补录当前页面</button></div>
   </div>`;
   const $ = s => root.querySelector(s);
   const card = $('.card'), form = $('form'), coolForm = $('form.cool');
@@ -138,8 +134,11 @@
     $('.scan b').textContent = scanned.length;
     $('.no b').textContent = scanned.filter(u => !u.f).length;
     $('.unf b').textContent = day.unfollow;
-    $('.reset-scan').textContent = S.scanPaused ? '重新扫描' : '重置今日扫描';
-    $('.account').textContent = activeAccount ? `@${activeAccount}${legacyBoundTo === activeAccount ? ' · 旧记录已绑定本账号，原数据备份保留在导出中' : ''}` : '等待识别登录账号';
+    const scanLabel = S.scanPaused ? '重新扫描' : '重置今日扫描';
+    $('.reset-scan').title = scanLabel;
+    $('.reset-scan').setAttribute('aria-label', scanLabel);
+    $('.reset-scan').classList.toggle('paused', S.scanPaused);
+    $('.card').title = activeAccount ? `@${activeAccount}` : '等待识别登录账号';
     card.classList.toggle('collapsed', !!S.panel?.collapsed);
     $('.fold').textContent = S.panel?.collapsed ? '+' : '–';
     // X's real cooldown is often longer than the wait set here, so the banner stays until a follow goes through.
@@ -351,10 +350,6 @@
       }
     } catch (error) { reportError(error); await mutate({ type: 'read' }).catch(() => {}); }
     finally { resetting = false; button.disabled = false; }
-  };
-  $('.profile-scan').onclick = async () => {
-    if (profileCache?.owner === activeAccount && profileCache.key === dayKey()) return record(profileCache.items, true).catch(reportError);
-    toast('请打开自己的主页“回复”标签并滚动加载今天内容；插件会自动补录，不额外请求 X', 6000);
   };
   $('header').addEventListener('pointerdown', e => {
     if (e.target.closest('button') || !e.isPrimary || e.button !== 0) return;
